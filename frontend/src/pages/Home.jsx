@@ -90,12 +90,12 @@ const Home = () => {
       {/* Foreground Content */}
       <div className="relative z-10">
         <header
-          className="border-b-2 py-6 bg-transparent"
+          className="border-b-2 py-6 bg-transparent text-center"
           style={{ borderColor: '#18BBF7' }}
         >
-          <div className="container mx-auto px-8">
+          <div className="container mx-auto">
             <h1
-              className="text-6xl font-bold tracking-tight mb-3"
+              className="text-5xl font-bold mb-2"
               style={{ color: '#18BBF7' }}
             >
               LAUNCH WINDOW
@@ -115,14 +115,14 @@ const Home = () => {
               Upcoming Launches
             </h2>
 
-            <div className="relative max-w-md w-full">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <div className="relative max-w-md w-full group">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-[#FF6B35]" />
               <input
                 type="text"
                 placeholder="Search by rocket or mission..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-12 pr-4 py-2 bg-gray-900/80 border border-gray-700 rounded-lg focus:outline-none focus:border-[#FF6B35]/80 transition-colors placeholder-gray-500 text-white"
+                className="w-full pl-12 pr-4 py-2 bg-black/20 focus:bg-black border border-gray-700 hover:border-gray-500 focus:outline-none focus:border-[#FF6B35]/80 transition-colors placeholder-gray-500"
               />
             </div>
           </div>
