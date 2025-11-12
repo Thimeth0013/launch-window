@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { fetchLaunchById, fetchStreamsForLaunch } from '../services/api';
 import Countdown from '../components/Countdown';
@@ -9,48 +9,51 @@ const LaunchDetail = () => {
   const { id } = useParams();
   const [launch, setLaunch] = useState(null);
   const [streams, setStreams] = useState([]);
-  const [filteredStreams, setFilteredStreams] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadData();
-  }, [id]);
+  // Use useCallback to prevent function recreation on every render
+  const clearSearch = useCallback(() => {
+    setSearchQuery('');
+  }, []);
 
-  useEffect(() => {
-    // Filter streams based on search query
+  // Handle search input
+  const handleSearchChange = useCallback((e) => {
+    setSearchQuery(e.target.value);
+  }, []);
+
+  // Memoize filtered streams to prevent unnecessary recalculations
+  const filteredStreams = useMemo(() => {
     if (searchQuery.trim() === '') {
-      setFilteredStreams(streams);
-    } else {
-      const query = searchQuery.toLowerCase();
-      const filtered = streams.filter(stream => 
-        stream.title.toLowerCase().includes(query) ||
-        stream.channelName.toLowerCase().includes(query)
-      );
-      setFilteredStreams(filtered);
+      return streams;
     }
+    
+    const query = searchQuery.toLowerCase();
+    return streams.filter(stream => 
+      stream.title.toLowerCase().includes(query) ||
+      stream.channelName.toLowerCase().includes(query)
+    );
   }, [searchQuery, streams]);
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [launchData, streamsData] = await Promise.all([
-        fetchLaunchById(id),
-        fetchStreamsForLaunch(id)
-      ]);
-      setLaunch(launchData);
-      setStreams(streamsData);
-      setFilteredStreams(streamsData);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const [launchData, streamsData] = await Promise.all([
+          fetchLaunchById(id),
+          fetchStreamsForLaunch(id)
+        ]);
+        setLaunch(launchData);
+        setStreams(streamsData);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const clearSearch = () => {
-    setSearchQuery('');
-  };
+    loadData();
+  }, [id]);
 
   if (loading) {
     return (
@@ -187,7 +190,7 @@ const LaunchDetail = () => {
                     type="text"
                     placeholder="Search streams by title or channel..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={handleSearchChange}
                     className="w-full pl-12 pr-12 py-2 bg-transparent text-white placeholder-gray-500 focus:outline-none border-1 border-gray-700 hover:border-gray-500 focus:border-[#FF6B35] transition-colors backdrop-blur-sm"
                   />
                   {searchQuery && (
@@ -220,7 +223,7 @@ const LaunchDetail = () => {
           )}
 
           {/* Stream Grid */}
-          <StreamGrid streams={filteredStreams} />
+          {filteredStreams.length > 0 && <StreamGrid streams={filteredStreams} />}
 
           {/* No Streams Message */}
           {streams.length === 0 && (
