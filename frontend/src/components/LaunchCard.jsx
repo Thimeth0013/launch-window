@@ -50,11 +50,14 @@ const LaunchCard = ({ launch }) => {
                 {launchDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
-            
-            <div 
+            <div
               className={`px-2 py-1 border text-xs tracking-widest uppercase font-bold ${
-                launch.status === 'Go for Launch' 
-                  ? 'border-green-500 text-green-400' 
+                launch.status === 'Go for Launch'
+                  ? 'border-green-500 text-green-400'
+                  : launch.status === 'To Be Confirmed'
+                  ? 'border-yellow-500 text-yellow-400'
+                  : launch.status === 'To Be Determined'
+                  ? 'border-gray-500 text-gray-400'
                   : 'border-yellow-500 text-yellow-400'
               }`}
               style={{ fontSize: '0.6rem' }}

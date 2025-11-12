@@ -168,7 +168,7 @@ const LaunchDetail = () => {
           <div className="mb-12 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
             <div>
               <h2 className="text-3xl font-bold tracking-wide" style={{ color: '#FF6B35' }}>
-                Live Streams
+                Upcoming Streams
               </h2>
               {streams.length > 0 && (
                 <p className="text-gray-400 text-sm mt-2">
