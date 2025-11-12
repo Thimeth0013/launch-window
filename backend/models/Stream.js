@@ -1,23 +1,64 @@
 import mongoose from 'mongoose';
 
 const streamSchema = new mongoose.Schema({
-  launchId: { type: String, required: true, ref: 'Launch' },
-  platform: { type: String, required: true, enum: ['youtube', 'twitter', 'twitch'] },
-  streamId: { type: String, required: true },
-  url: { type: String, required: true },
-  title: { type: String, required: true },
-  channelName: String,
-  channelId: String,
+  streamId: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  launchId: {
+    type: String,
+    required: true,
+    index: true
+  },
+  url: {
+    type: String,
+    required: true
+  },
+  title: {
+    type: String,
+    required: true
+  },
+  channelName: {
+    type: String,
+    required: true
+  },
+  channelId: {
+    type: String,
+    required: true
+  },
   thumbnailUrl: String,
-  language: { type: String, default: 'en' },
   scheduledStartTime: Date,
-  isLive: { type: Boolean, default: false },
-  viewerCount: Number,
-  matchScore: Number
-}, {
-  timestamps: true
+  platform: {
+    type: String,
+    default: 'youtube'
+  },
+  isLive: {
+    type: Boolean,
+    default: false
+  },
+  status: {
+    type: String,
+    enum: ['upcoming', 'scrubbed', 'complete'],
+    default: 'upcoming'
+  },
+  matchScore: {
+    type: Number,
+    default: 0
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  }
 });
 
-streamSchema.index({ launchId: 1, platform: 1 });
+// Index for efficient queries
+streamSchema.index({ launchId: 1, status: 1 });
 
-export default mongoose.model('Stream', streamSchema);
+const Stream = mongoose.model('Stream', streamSchema);
+
+export default Stream;
