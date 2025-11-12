@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { fetchUpcomingLaunches } from '../services/launchService.js';
 import { matchStreamsToLaunches } from '../services/youtubeService.js';
 import { cleanupOldLaunches, cleanupOrphanedStreams } from '../services/cleanupService.js';
+import { startScrubDetectionScheduler } from '../services/scrubDetectionScheduler.js';
 import Launch from '../models/Launch.js';
 
 export const startScheduler = () => {
@@ -47,7 +48,11 @@ export const startScheduler = () => {
     }
   });
 
+  // Start the scrub detection scheduler
+  startScrubDetectionScheduler();
+
   console.log('Scheduler started:');
   console.log('- Fetching launches/streams: Twice daily at 12:00 AM and 12:00 PM');
   console.log('- Cleanup happens automatically after each successful fetch');
+  console.log('- Scrub detection: Running every minute for launches at T-0');
 };

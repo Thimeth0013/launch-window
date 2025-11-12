@@ -5,6 +5,7 @@ import Stream from '../models/Stream.js';
  * Delete launches that are older than specified hours
  * Also deletes all associated streams
  * @param {number} hoursAfterLaunch - Hours after launch date to keep (default: 24)
+ * @returns {number} - Number of launches deleted
  */
 export const cleanupOldLaunches = async (hoursAfterLaunch = 24) => {
   try {
@@ -22,7 +23,7 @@ export const cleanupOldLaunches = async (hoursAfterLaunch = 24) => {
 
     if (oldLaunches.length === 0) {
       console.log('✅ No old launches to clean up');
-      return { deleted: 0, streamsDeleted: 0 };
+      return 0; // Return number
     }
 
     console.log(`\nFound ${oldLaunches.length} old launches to delete:`);
@@ -49,12 +50,7 @@ export const cleanupOldLaunches = async (hoursAfterLaunch = 24) => {
     console.log(`\n=== Cleanup Completed ===`);
     console.log(`Total removed: ${launchesDeleted.deletedCount} launches, ${streamsDeleted.deletedCount} streams\n`);
     
-    return {
-      deleted: launchesDeleted.deletedCount,
-      streamsDeleted: streamsDeleted.deletedCount,
-      launchIds: launchIds,
-      launches: oldLaunches.map(l => ({ id: l.id, name: l.name, date: l.date }))
-    };
+    return launchesDeleted.deletedCount; // Return number only
   } catch (error) {
     console.error('❌ Error cleaning up old launches:', error.message);
     throw error;
@@ -85,7 +81,7 @@ export const archiveOldLaunches = async (hoursAfterLaunch = 24) => {
 
     console.log(`✅ Archived ${result.modifiedCount} old launches\n`);
     
-    return { archived: result.modifiedCount };
+    return result.modifiedCount; // Return number
   } catch (error) {
     console.error('❌ Error archiving old launches:', error.message);
     throw error;
@@ -95,6 +91,7 @@ export const archiveOldLaunches = async (hoursAfterLaunch = 24) => {
 /**
  * Delete streams for launches that no longer exist
  * Cleanup orphaned data
+ * @returns {number} - Number of orphaned streams deleted
  */
 export const cleanupOrphanedStreams = async () => {
   try {
@@ -115,7 +112,7 @@ export const cleanupOrphanedStreams = async () => {
 
     if (orphanedIds.length === 0) {
       console.log('✅ No orphaned streams to clean up\n');
-      return { deleted: 0 };
+      return 0; // Return number
     }
 
     console.log(`Found ${orphanedIds.length} orphaned launch IDs:`);
@@ -127,10 +124,7 @@ export const cleanupOrphanedStreams = async () => {
 
     console.log(`✅ Cleaned up ${result.deletedCount} orphaned streams\n`);
     
-    return { 
-      deleted: result.deletedCount,
-      orphanedLaunchIds: orphanedIds
-    };
+    return result.deletedCount; // Return number only
   } catch (error) {
     console.error('❌ Error cleaning up orphaned streams:', error.message);
     throw error;
