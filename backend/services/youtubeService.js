@@ -9,9 +9,39 @@ const KNOWN_CHANNELS = [
   'UCSUu1lih2RifWkKtDOJdsBA', // NASASpaceflight
   'UCGCndz0n0NHmLHfd64FRjIA', // The Launch Pad
   'UCoLdERT4-TJ82PJOHSrsZLQ', // Spaceflight Now
+  'UCVTomc35agH1SM6kCKzwW_g', // VideoFromSpace
 ];
 
-// Check channel for upcoming scheduled streams
+// Build a more specific search query based on mission type
+function buildSearchQuery(launchName) {
+  const rocketName = getRocketName(launchName);
+  const missionInfo = extractMissionInfo(launchName);
+  
+  // For Starlink missions, include the group number in search
+  if (missionInfo.type === 'starlink' && missionInfo.group) {
+    return `${rocketName} Starlink ${missionInfo.group}`;
+  }
+  
+  // For Starship missions, include flight number
+  if (missionInfo.type === 'starship' && missionInfo.flightNumber) {
+    return `Starship Flight ${missionInfo.flightNumber}`;
+  }
+  
+  // For missions with specific payloads
+  if (missionInfo.type === 'payload' && missionInfo.payload) {
+    return `${rocketName} ${missionInfo.payload}`;
+  }
+  
+  // For high-profile rockets without specific missions
+  if (isHighProfile(rocketName)) {
+    return rocketName;
+  }
+  
+  // Default: just rocket name
+  return rocketName;
+}
+
+// Check channel for upcoming streams only
 export const checkChannelUpcomingStreams = async (channelId, launchName) => {
   const apiKey = process.env.YOUTUBE_API_KEY;
   
@@ -20,7 +50,11 @@ export const checkChannelUpcomingStreams = async (channelId, launchName) => {
   }
 
   try {
-    const rocketName = getRocketName(launchName);
+    // Use more general search for Everyday Astronaut (they use casual titles)
+    const isEverydayAstronaut = channelId === 'UC6uKrU_WqJ1R2HMTY3LIx5Q';
+    const searchQuery = isEverydayAstronaut 
+      ? getRocketName(launchName)  // Just rocket name for EA
+      : buildSearchQuery(launchName);  // Specific query for others
     
     const response = await axios.get(`${YOUTUBE_API_BASE}/search`, {
       params: {
@@ -31,49 +65,18 @@ export const checkChannelUpcomingStreams = async (channelId, launchName) => {
         eventType: 'upcoming',
         maxResults: 20,
         order: 'date',
-        q: rocketName
+        q: searchQuery
       }
     });
 
     const items = response.data.items || [];
+    const filtered = filterMatchingStreams(items, launchName, false);
     
-    return filterMatchingStreams(items, launchName, false);
+    // Ensure we always return an array
+    return Array.isArray(filtered) ? filtered : [];
   } catch (error) {
     console.error(`Error checking channel ${channelId}:`, error.message);
-    return [];
-  }
-};
-
-// Check channel for currently LIVE streams
-export const checkChannelLiveStreams = async (channelId, launchName) => {
-  const apiKey = process.env.YOUTUBE_API_KEY;
-  
-  if (!apiKey || apiKey === 'your_youtube_api_key_here') {
-    return [];
-  }
-
-  try {
-    const rocketName = getRocketName(launchName);
-    
-    const response = await axios.get(`${YOUTUBE_API_BASE}/search`, {
-      params: {
-        key: apiKey,
-        part: 'snippet',
-        channelId: channelId,
-        type: 'video',
-        eventType: 'live',
-        maxResults: 20,
-        order: 'date',
-        q: rocketName
-      }
-    });
-
-    const items = response.data.items || [];
-    
-    return filterMatchingStreams(items, launchName, true);
-  } catch (error) {
-    console.error(`Error checking live streams for channel ${channelId}:`, error.message);
-    return [];
+    return []; // Always return empty array on error
   }
 };
 
@@ -104,17 +107,40 @@ function filterMatchingStreams(items, launchName, isLive) {
         }
       }
       // Accept ANY video with the high-profile rocket name
+      // This includes payload missions like "New Glenn | EscaPADE"
       return true;
     }
     
-    // STRICT MATCHING for Starlink missions (frequent launches)
+    // MATCHING for Starlink missions (frequent launches - need strict matching)
     if (missionInfo.type === 'starlink' && missionInfo.group) {
-      // Must contain the EXACT group number (e.g., "6-87")
-      const groupRegex = new RegExp(`\\b${missionInfo.group.replace('-', '[-\\s]?')}\\b`, 'i');
-      return groupRegex.test(title) || groupRegex.test(description);
+      // Must contain "starlink" AND the group number
+      if (!combined.includes('starlink')) {
+        return false;
+      }
+      
+      // Look for the group number in various formats
+      const groupParts = missionInfo.group.split('-');
+      if (groupParts.length === 2) {
+        // Match patterns like: "6-87", "6 87", "group 6-87", etc.
+        const patterns = [
+          `${groupParts[0]}-${groupParts[1]}`,     // "6-87"
+          `${groupParts[0]} ${groupParts[1]}`,     // "6 87"
+          `${groupParts[0]}/${groupParts[1]}`,     // "6/87"
+          `group ${groupParts[0]}-${groupParts[1]}`, // "group 6-87"
+          `group ${groupParts[0]} ${groupParts[1]}`  // "group 6 87"
+        ];
+        
+        const matched = patterns.some(pattern => combined.includes(pattern.toLowerCase()));
+        if (matched) {
+          return true;
+        }
+      }
+      
+      // Fallback: just check if the group string appears anywhere
+      return combined.includes(missionInfo.group.toLowerCase());
     }
     
-    // For missions with specific payloads (non-high-profile)
+    // For missions with specific payloads (non-high-profile rockets only)
     if (missionInfo.type === 'payload' && missionInfo.payload) {
       const payloadLower = missionInfo.payload.toLowerCase();
       // Payload name should appear in title or description
@@ -154,8 +180,8 @@ export const matchStreamsToLaunches = async (launches) => {
     
     const daysUntilLaunch = (launchDate - now) / (1000 * 60 * 60 * 24);
     
-    // Only search for launches within 3 days
-    if (daysUntilLaunch < 0 || daysUntilLaunch > 3) {
+    // Only search for launches within 2 day to conserve API quota
+    if (daysUntilLaunch < 0 || daysUntilLaunch > 2) {
       console.log(`⏭️  Skipping "${launch.name}" (${daysUntilLaunch.toFixed(1)} days away)`);
       continue;
     }
@@ -163,11 +189,13 @@ export const matchStreamsToLaunches = async (launches) => {
     const missionInfo = extractMissionInfo(launch.name);
     const rocketName = getRocketName(launch.name);
     const isHighProfileRocket = isHighProfile(rocketName);
+    const searchQuery = buildSearchQuery(launch.name);
     
     console.log(`\n🔍 Searching for: ${launch.name}`);
     console.log(`   Rocket: ${rocketName}${isHighProfileRocket ? ' 🌟 (High-profile)' : ''}`);
+    console.log(`   Search query: "${searchQuery}"`);
     if (missionInfo.type === 'starlink') {
-      console.log(`   Mission: Starlink Group ${missionInfo.group} (strict matching)`);
+      console.log(`   Mission: Starlink Group ${missionInfo.group}`);
     } else if (missionInfo.type === 'payload') {
       console.log(`   Mission: ${missionInfo.payload}`);
     } else if (isHighProfileRocket) {
@@ -179,20 +207,18 @@ export const matchStreamsToLaunches = async (launches) => {
     const allStreams = [];
     
     for (const channelId of KNOWN_CHANNELS) {
-      // Check for upcoming scheduled streams
+      // Check for upcoming scheduled streams only
       const upcomingStreams = await checkChannelUpcomingStreams(channelId, launch.name);
       
-      // Check for currently live streams
-      const liveStreams = await checkChannelLiveStreams(channelId, launch.name);
+      // Ensure we have an array (in case of errors)
+      const streams = Array.isArray(upcomingStreams) ? upcomingStreams : [];
       
-      const channelTotal = upcomingStreams.length + liveStreams.length;
-      if (channelTotal > 0) {
-        console.log(`   ✅ Found ${channelTotal} streams from channel ${channelId}`);
-        upcomingStreams.forEach(s => console.log(`      📺 "${s.title}"`));
-        liveStreams.forEach(s => console.log(`      🔴 "${s.title}"`));
+      if (streams.length > 0) {
+        console.log(`   ✅ Found ${streams.length} streams from channel ${channelId}`);
+        streams.forEach(s => console.log(`      📺 "${s.title}"`));
       }
       
-      allStreams.push(...upcomingStreams, ...liveStreams);
+      allStreams.push(...streams);
       
       // Add delay to avoid rate limiting
       await new Promise(resolve => setTimeout(resolve, 300));
