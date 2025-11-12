@@ -10,6 +10,7 @@ const KNOWN_CHANNELS = [
   'UCGCndz0n0NHmLHfd64FRjIA', // The Launch Pad
   'UCoLdERT4-TJ82PJOHSrsZLQ', // Spaceflight Now
   'UCVTomc35agH1SM6kCKzwW_g', // VideoFromSpace
+  'UC2_vpnza621Sa0cf_xhqJ8Q', // Raw Space
 ];
 
 // Build a more specific search query based on mission type
