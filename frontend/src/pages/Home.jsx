@@ -3,6 +3,7 @@ import { fetchLaunches } from '../services/api';
 import LaunchCard from '../components/LaunchCard';
 import Particles from '../components/Particles';
 import { Loader2, Search } from 'lucide-react';
+import logo from '../assets/logo.png';
 
 const Home = () => {
   const [launches, setLaunches] = useState([]);
@@ -10,6 +11,27 @@ const Home = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formattedTime = time.toLocaleTimeString('en-US', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+
+  const formattedDate = time.toLocaleDateString('en-US', {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 
   useEffect(() => {
     loadLaunches();
@@ -89,27 +111,36 @@ const Home = () => {
 
       {/* Foreground Content */}
       <div className="relative z-10">
-        <header
-          className="border-b-2 py-6 bg-transparent text-center"
-          style={{ borderColor: '#18BBF7' }}
-        >
-          <div className="container mx-auto">
-            <h1
-              className="text-5xl font-bold mb-2"
-              style={{ color: '#18BBF7' }}
-            >
-              LAUNCH WINDOW
-            </h1>
-            <p className="text-white text-lg font-light tracking-wide">
-              Explore launch schedules and live mission streams
-            </p>
-          </div>
-        </header>
+      <div className='md:fixed w-full z-100'>
+      <header
+            className="border-b-1 py-3 bg-black text-left"
+            style={{ borderColor: '#18BBF7' }}
+          >
+            <div className="container mx-auto flex items-center justify-between px-8">
+              {/* Title and tagline */}
+              <div className="flex items-center gap-2 md:gap-2 pt-1 pb-1 group">
+                <img
+                  src={logo}
+                  alt="logo"
+                  className="md:h-10 h-8 transition-transform duration-600 group-hover:rotate-y-180 "
+                  style={{ transformStyle: 'preserve-3d' }}
+                />
+                <h1 className="text-lg md:text-2xl font-bold text-[#18BBF7]">Launch Window</h1>
+              </div>
 
-        <main className="container mx-auto px-8 py-16">
+
+              {/* Old-school style date/time */}
+              <div className="text-[#18BBF7] font-mono text-right tracking-widest text-xs md:text-sm">
+                <div>{formattedTime} | {formattedDate.toUpperCase()}</div>
+              </div>
+            </div>
+          </header>
+          </div>
+
+        <main className="container mx-auto px-8 py-6 md:py-28">
           <div className="mb-12 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
             <h2
-              className="text-3xl font-bold tracking-wide"
+              className="text-2xl md:text-3xl font-bold tracking-wide"
               style={{ color: '#FF6B35' }}
             >
               Upcoming Launches
