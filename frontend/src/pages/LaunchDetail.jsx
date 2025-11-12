@@ -188,7 +188,7 @@ const LaunchDetail = () => {
                     placeholder="Search streams by title or channel..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-12 pr-12 py-2 bg-transparent text-white placeholder-gray-500 focus:outline-none border hover:border-gray-50 focus:border-[#FF6B35] transition-colors backdrop-blur-sm"
+                    className="w-full pl-12 pr-12 py-2 bg-transparent text-white placeholder-gray-500 focus:outline-none border-1 border-gray-700 hover:border-gray-500 focus:border-[#FF6B35] transition-colors backdrop-blur-sm"
                   />
                   {searchQuery && (
                     <button
