@@ -1,7 +1,7 @@
 import { useEffect, useState, memo } from 'react';
 import { Play, Youtube } from 'lucide-react';
 
-// Extract StreamCard to its own component so hooks work correctly
+// Separate component for each stream card to properly use hooks
 const StreamCard = memo(({ stream }) => {
   const [isActive, setIsActive] = useState(false);
 
@@ -38,7 +38,7 @@ const StreamCard = memo(({ stream }) => {
     // Set up interval for periodic checks
     const interval = setInterval(() => {
       setIsActive(isStreamLive(stream.scheduledStartTime));
-    }, 30000);
+    }, 30000); // Check every 30 seconds
 
     return () => clearInterval(interval);
   }, [stream.scheduledStartTime]);
@@ -53,10 +53,7 @@ const StreamCard = memo(({ stream }) => {
   const isYouTube = stream.platform === 'youtube';
 
   return (
-    <div
-      key={stream._id}
-      className="group h-full block transition-all duration-300"
-    >
+    <div className="group h-full block transition-all duration-300">
       <div className="bg-transparent backdrop-blur-xs border-2 overflow-hidden h-full flex flex-col border-[#18BBF7]/40 hover:border-[#18BBF7] transition-all duration-300">
         
         {/* Thumbnail / Embed */}
@@ -128,7 +125,10 @@ const StreamGrid = ({ streams }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
       {streams.map((stream) => (
-        <StreamCard key={stream._id || stream.streamId} stream={stream} />
+        <StreamCard 
+          key={stream.streamId || stream._id} 
+          stream={stream} 
+        />
       ))}
     </div>
   );

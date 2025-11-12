@@ -1,39 +1,15 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { fetchLaunchById, fetchStreamsForLaunch } from '../services/api';
 import Countdown from '../components/Countdown';
 import StreamGrid from '../components/StreamGrid';
-import { ChevronLeft, Loader2, Search, X } from 'lucide-react';
+import { ChevronLeft, Loader2 } from 'lucide-react';
 
 const LaunchDetail = () => {
   const { id } = useParams();
   const [launch, setLaunch] = useState(null);
   const [streams, setStreams] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-
-  // Use useCallback to prevent function recreation on every render
-  const clearSearch = useCallback(() => {
-    setSearchQuery('');
-  }, []);
-
-  // Handle search input
-  const handleSearchChange = useCallback((e) => {
-    setSearchQuery(e.target.value);
-  }, []);
-
-  // Memoize filtered streams to prevent unnecessary recalculations
-  const filteredStreams = useMemo(() => {
-    if (searchQuery.trim() === '') {
-      return streams;
-    }
-    
-    const query = searchQuery.toLowerCase();
-    return streams.filter(stream => 
-      stream.title.toLowerCase().includes(query) ||
-      stream.channelName.toLowerCase().includes(query)
-    );
-  }, [searchQuery, streams]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -167,63 +143,20 @@ const LaunchDetail = () => {
       {/* Live Streams Section */}
       <div className="bg-black border-t-2" style={{ borderColor: '#18BBF7' }}>
         <div className="container mx-auto py-16 px-8">
-          {/* Header with Search Bar */}
-          <div className="mb-12 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-            <div>
-              <h2 className="text-3xl font-bold tracking-wide" style={{ color: '#FF6B35' }}>
-                Upcoming Streams
-              </h2>
-              {streams.length > 0 && (
-                <p className="text-gray-400 text-sm mt-2">
-                  {filteredStreams.length} of {streams.length} stream{streams.length !== 1 ? 's' : ''}
-                  {searchQuery && filteredStreams.length !== streams.length && ' found'}
-                </p>
-              )}
-            </div>
-
-            {/* Search Bar */}
+          {/* Header */}
+          <div className="mb-12">
+            <h2 className="text-3xl font-bold tracking-wide" style={{ color: '#FF6B35' }}>
+              Upcoming Streams
+            </h2>
             {streams.length > 0 && (
-              <div className="relative w-full md:w-96 group">
-                <div className="relative">
-                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 z-50  group-focus-within:text-[#FF6B35]" />
-                  <input
-                    type="text"
-                    placeholder="Search streams by title or channel..."
-                    value={searchQuery}
-                    onChange={handleSearchChange}
-                    className="w-full pl-12 pr-12 py-2 bg-transparent text-white placeholder-gray-500 focus:outline-none border-1 border-gray-700 hover:border-gray-500 focus:border-[#FF6B35] transition-colors backdrop-blur-sm"
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={clearSearch}
-                      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-                      aria-label="Clear search"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  )}
-                </div>
-              </div>
+              <p className="text-gray-400 text-sm mt-2">
+                {streams.length} stream{streams.length !== 1 ? 's' : ''} available
+              </p>
             )}
           </div>
 
-          {/* Search Results Message */}
-          {searchQuery && filteredStreams.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-gray-400 text-lg mb-4">
-                No streams found matching "{searchQuery}"
-              </p>
-              <button
-                onClick={clearSearch}
-                className="text-[#18BBF7] hover:text-[#FF6B35] transition-colors underline"
-              >
-                Clear search
-              </button>
-            </div>
-          )}
-
           {/* Stream Grid */}
-          {filteredStreams.length > 0 && <StreamGrid streams={filteredStreams} />}
+          {streams.length > 0 && <StreamGrid streams={streams} />}
 
           {/* No Streams Message */}
           {streams.length === 0 && (
