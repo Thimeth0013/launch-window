@@ -11,6 +11,7 @@ const KNOWN_CHANNELS = [
   'UCoLdERT4-TJ82PJOHSrsZLQ', // Spaceflight Now
   'UCVTomc35agH1SM6kCKzwW_g', // VideoFromSpace
   'UC2_vpnza621Sa0cf_xhqJ8Q', // Raw Space
+  'UC9T3XwCjQdzpSp7IzGkbtJA', //International Rocket Launches
 ];
 
 // Build a more specific search query based on mission type
