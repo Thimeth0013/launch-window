@@ -6,6 +6,7 @@ import connectDB from './config/db.js';
 import launchRoutes from './routes/launches.js';
 import streamRoutes from './routes/streams.js';
 import { startScheduler } from './utils/scheduler.js';
+import { startScrubDetectionScheduler } from './services/scrubDetectionScheduler.js';
 import { fetchUpcomingLaunches } from './services/launchService.js';
 import Launch from './models/Launch.js';
 import Stream from './models/Stream.js';
@@ -517,8 +518,9 @@ app.use((req, res) => {
   }
 })();
 
-// Start scheduler
-startScheduler();
+// Start schedulers
+startScheduler(); // Main scheduler (every 30 mins + stream matching)
+startScrubDetectionScheduler(); // T-0 checker (every 5 mins)
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

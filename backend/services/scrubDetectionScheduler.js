@@ -2,18 +2,8 @@ import cron from 'node-cron';
 import axios from 'axios';
 import Launch from '../models/Launch.js';
 import Stream from '../models/Stream.js';
-import { checkChannelUpcomingStreams } from './youtubeService.js';
 
 const LAUNCH_LIBRARY_API = 'https://ll.thespacedevs.com/2.2.0';
-const KNOWN_CHANNELS = [
-  'UC6uKrU_WqJ1R2HMTY3LIx5Q', // Everyday Astronaut
-  'UCSUu1lih2RifWkKtDOJdsBA', // NASASpaceflight
-  'UCGCndz0n0NHmLHfd64FRjIA', // The Launch Pad
-  'UCoLdERT4-TJ82PJOHSrsZLQ', // Spaceflight Now
-  'UCVTomc35agH1SM6kCKzwW_g', // VideoFromSpace
-  'UC2_vpnza621Sa0cf_xhqJ8Q', // Raw Space
-  'UC9T3XwCjQdzpSp7IzGkbtJA', //International Rocket Launches
-];
 
 // Track API calls per launch to respect rate limits (5 calls per launch per hour)
 const apiCallTracker = new Map(); // { launchId: [timestamps] }
@@ -64,107 +54,37 @@ export async function fetchLaunchUpdate(launchId) {
   }
 }
 
-// Classify streams as SCRUBBED or UPCOMING
-async function classifyAndUpdateStreams(launch, newLaunchDate) {
-  console.log(`🔍 Classifying streams for scrubbed launch: ${launch.name}`);
-  
-  const streams = await Stream.find({ launchId: launch.id });
-  const newDate = new Date(newLaunchDate);
-  
-  let scrubbedCount = 0;
-  let upcomingCount = 0;
-  
-  for (const stream of streams) {
-    const streamDate = new Date(stream.scheduledStartTime);
-    const titleLower = stream.title.toLowerCase();
-    
-    // Check if stream is about the scrub
-    const isScrubbed = streamDate < newDate || 
-                       titleLower.includes('scrub') || 
-                       titleLower.includes('scrubbed') ||
-                       titleLower.includes('delay') ||
-                       titleLower.includes('postpone');
-    
-    await Stream.findOneAndUpdate(
-      { streamId: stream.streamId },
+// Mark streams as scrubbed or complete based on launch status
+async function updateStreamStatus(launchId, status) {
+  try {
+    const result = await Stream.updateMany(
+      { launchId: launchId },
       { 
-        status: isScrubbed ? 'scrubbed' : 'upcoming',
+        status: status,
         updatedAt: new Date()
       }
     );
     
-    if (isScrubbed) {
-      scrubbedCount++;
-      console.log(`   🚫 SCRUBBED: "${stream.title}"`);
-    } else {
-      upcomingCount++;
-      console.log(`   ✅ UPCOMING: "${stream.title}"`);
+    if (result.modifiedCount > 0) {
+      console.log(`   📺 Updated ${result.modifiedCount} streams to status: ${status}`);
     }
+  } catch (error) {
+    console.error(`   ❌ Error updating streams:`, error.message);
   }
-  
-  console.log(`   📊 ${scrubbedCount} scrubbed, ${upcomingCount} upcoming`);
-}
-
-// Fetch new streams after scrub detection
-async function fetchNewStreamsAfterScrub(launch) {
-  console.log(`🔍 Searching for new streams after scrub for: ${launch.name}`);
-  
-  const allStreams = [];
-  
-  for (const channelId of KNOWN_CHANNELS) {
-    const upcomingStreams = await checkChannelUpcomingStreams(channelId, launch.name);
-    const liveStreams = await checkChannelLiveStreams(channelId, launch.name);
-    
-    allStreams.push(...upcomingStreams, ...liveStreams);
-    
-    // Delay to avoid rate limiting
-    await new Promise(resolve => setTimeout(resolve, 300));
-  }
-  
-  const newLaunchDate = new Date(launch.date);
-  let newStreamCount = 0;
-  
-  for (const stream of allStreams) {
-    // Check if this stream already exists
-    const existing = await Stream.findOne({ streamId: stream.streamId });
-    
-    if (!existing) {
-      // New stream found
-      const streamDate = new Date(stream.scheduledStartTime);
-      const titleLower = stream.title.toLowerCase();
-      
-      const isScrubbed = streamDate < newLaunchDate || 
-                         titleLower.includes('scrub') || 
-                         titleLower.includes('scrubbed');
-      
-      await Stream.create({
-        ...stream,
-        launchId: launch.id,
-        status: isScrubbed ? 'scrubbed' : 'upcoming',
-        matchScore: 0.8
-      });
-      
-      newStreamCount++;
-      console.log(`   ➕ NEW: "${stream.title}" (${isScrubbed ? 'SCRUBBED' : 'UPCOMING'})`);
-    }
-  }
-  
-  console.log(`   📊 Added ${newStreamCount} new streams`);
 }
 
 // Main function to check launches at T-0
 export const checkLaunchesAtT0 = async () => {
   const now = new Date();
   
-  // Find launches where countdown should be at or past zero
-  // (within 5 minutes of scheduled time to account for timing)
-  const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
-  const fiveMinutesAhead = new Date(now.getTime() + 5 * 60 * 1000);
+  // Find launches within ±10 minutes of scheduled time
+  const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
+  const tenMinutesAhead = new Date(now.getTime() + 10 * 60 * 1000);
   
   const launchesAtT0 = await Launch.find({
     date: { 
-      $gte: fiveMinutesAgo,
-      $lte: fiveMinutesAhead
+      $gte: tenMinutesAgo,
+      $lte: tenMinutesAhead
     },
     status: { 
       $nin: ['Success', 'Failure', 'Partial Failure'] // Don't check completed launches
@@ -194,11 +114,12 @@ export const checkLaunchesAtT0 = async () => {
     const timeDiffHours = (newDate - oldDate) / (1000 * 60 * 60);
     const newStatus = updatedData.status?.name || launch.status;
     
-    console.log(`   New status: ${newStatus}`);
-    console.log(`   New date: ${newDate}`);
+    console.log(`   Old status: ${launch.status} → New status: ${newStatus}`);
+    console.log(`   Old date: ${oldDate.toISOString()}`);
+    console.log(`   New date: ${newDate.toISOString()}`);
     console.log(`   Time difference: ${timeDiffHours.toFixed(2)} hours`);
     
-    // Check if launch is complete
+    // Check if launch is complete (Success/Failure)
     if (newStatus === 'Success' || newStatus === 'Failure' || newStatus === 'Partial Failure') {
       console.log(`   ✅ Launch complete! Status: ${newStatus}`);
       
@@ -212,18 +133,15 @@ export const checkLaunchesAtT0 = async () => {
       );
       
       // Mark all streams as complete
-      await Stream.updateMany(
-        { launchId: launch.id },
-        { status: 'complete' }
-      );
+      await updateStreamStatus(launch.id, 'complete');
       
       console.log(`   📋 Marked launch and streams as complete`);
       continue;
     }
     
-    // Check for scrub (delay > 1 day = 24 hours)
-    if (Math.abs(timeDiffHours) > 24) {
-      console.log(`   🚨 SCRUB DETECTED! Launch delayed by ${timeDiffHours.toFixed(1)} hours`);
+    // Check for last-minute scrub (delay > 1 hour at T-0)
+    if (Math.abs(timeDiffHours) > 1) {
+      console.log(`   🚨 LAST-MINUTE SCRUB! Launch delayed by ${timeDiffHours.toFixed(1)} hours`);
       
       // Update launch data
       await Launch.findOneAndUpdate(
@@ -235,18 +153,15 @@ export const checkLaunchesAtT0 = async () => {
         }
       );
       
-      // Classify existing streams
-      await classifyAndUpdateStreams(launch, newDate);
+      // Mark streams as scrubbed (the main scheduler will clean them up and find new ones)
+      await updateStreamStatus(launch.id, 'scrubbed');
       
-      // Fetch new streams
-      await fetchNewStreamsAfterScrub({ ...launch, date: newDate });
-      
-      console.log(`   ✅ Scrub handling complete`);
+      console.log(`   ✅ Scrub recorded - main scheduler will clean up and find new streams`);
       
     } else if (Math.abs(timeDiffHours) > 0.05) { // More than 3 minutes
       console.log(`   ⏱️  Minor delay detected (${timeDiffHours.toFixed(2)} hours)`);
       
-      // Just update launch data, don't touch streams
+      // Just update launch data
       await Launch.findOneAndUpdate(
         { id: launch.id },
         {
@@ -267,8 +182,8 @@ export const checkLaunchesAtT0 = async () => {
 
 // Start the scrub detection scheduler
 export const startScrubDetectionScheduler = () => {
-  // Check every minute for launches at T-0
-  cron.schedule('* * * * *', async () => {
+  // Check every 5 minutes for launches at T-0 (less aggressive than every minute)
+  cron.schedule('*/5 * * * *', async () => {
     try {
       await checkLaunchesAtT0();
     } catch (error) {
@@ -276,5 +191,5 @@ export const startScrubDetectionScheduler = () => {
     }
   });
   
-  console.log('🔍 Scrub detection scheduler started (checking every minute)');
+  console.log('🔍 Scrub detection scheduler started (checking every 5 minutes at T-0)');
 };
