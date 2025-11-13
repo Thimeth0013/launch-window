@@ -41,7 +41,7 @@ const Countdown = ({ targetDate }) => {
     <div className="grid grid-flow-col gap-5 text-center auto-cols-max">
       {/* Days */}
       <div className="flex flex-col p-2 bg-neutral rounded-box text-neutral-content">
-        <span className="countdown font-mono text-5xl">
+        <span className="countdown font-mono text-3xl md:text-6xl">
           <span style={{ "--value": timeLeft.days }}>
             {pad(timeLeft.days)}
           </span>
@@ -51,7 +51,7 @@ const Countdown = ({ targetDate }) => {
 
       {/* Hours */}
       <div className="flex flex-col p-2 bg-neutral rounded-box text-neutral-content">
-        <span className="countdown font-mono text-5xl">
+        <span className="countdown font-mono text-3xl md:text-6xl">
           <span style={{ "--value": timeLeft.hours }}>
             {pad(timeLeft.hours)}
           </span>
@@ -61,7 +61,7 @@ const Countdown = ({ targetDate }) => {
 
       {/* Minutes */}
       <div className="flex flex-col p-2 bg-neutral rounded-box text-neutral-content">
-        <span className="countdown font-mono text-5xl">
+        <span className="countdown font-mono text-3xl md:text-6xl">
           <span style={{ "--value": timeLeft.minutes }}>
             {pad(timeLeft.minutes)}
           </span>
@@ -71,7 +71,7 @@ const Countdown = ({ targetDate }) => {
 
       {/* Seconds */}
       <div className="flex flex-col p-2 bg-neutral rounded-box text-neutral-content">
-        <span className="countdown font-mono text-5xl">
+        <span className="countdown font-mono text-3xl md:text-6xl">
           <span style={{ "--value": timeLeft.seconds }}>
             {pad(timeLeft.seconds)}
           </span>

@@ -36,7 +36,7 @@ const LaunchDetail = () => {
       <div className="flex justify-center items-center min-h-screen bg-black text-white">
         <div className="flex flex-col items-center">
           <Loader2 className="w-16 h-16 animate-spin" style={{ color: '#18BBF7' }} />
-          <span className="mt-6 text-2xl font-light tracking-widest uppercase">Loading launch details</span>
+          <span className="mt-6 text-lg md:text-2xl font-light tracking-widest uppercase">Loading launch details</span>
         </div>
       </div>
     );
@@ -76,12 +76,12 @@ const LaunchDetail = () => {
         <div className="relative z-10 flex flex-col flex-1">
           {/* Header */}
           <header className="pt-8">
-            <div className="container mx-10 fixed">
+            <div className="container mx-4 md:mx-10 fixed z-100">
               <Link 
                 to="/" 
-                className="inline-flex items-center gap-2 text-white/80 hover:text-[#FF6B35] transition-all group"
+                className="inline-flex items-center gap-2 text-[#FF6B35] md:text-white/80 hover:text-[#FF6B35] transition-all group"
               >
-                <ChevronLeft className="w-8 h-8 transition-transform group-hover:-translate-x-1  bg-white/10 backdrop-blur-md  hover:bg-white" />
+                <ChevronLeft className="w-8 h-8 transition-transform group-hover:-translate-x-1 bg-white md:bg-white/10 backdrop-blur-md  hover:bg-white" />
               </Link>
             </div>
           </header>
@@ -90,7 +90,7 @@ const LaunchDetail = () => {
           <div className="flex-1 flex items-center justify-center py-12 pt-6">
             <div className="container mx-auto px-8 text-center">
               {/* Launch Title */}
-              <h1 className="text-6xl md:text-7xl font-bold tracking-wide uppercase mb-6 drop-shadow-2xl" style={{ color: '#ffffff', textShadow: '0 0 40px rgba(255, 255, 255, 0.5)' }}>
+              <h1 className="text-3xl md:text-7xl font-bold tracking-wide uppercase mb-6 drop-shadow-2xl" style={{ color: '#ffffff', textShadow: '0 0 40px rgba(255, 255, 255, 0.5)' }}>
                 {launch.name}
               </h1>
               <div className="h-1 w-32 mx-auto mb-12" style={{ backgroundColor: '#FF6B35', boxShadow: '0 0 20px rgba(255, 107, 53, 0.8)' }}></div>
@@ -107,19 +107,19 @@ const LaunchDetail = () => {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-6xl mx-auto mb-12">
                 <div>
                   <span className="text-gray-300 text-xs tracking-widest uppercase block mb-2 drop-shadow-lg">Rocket</span>
-                  <p className="font-light text-white text-lg tracking-wide drop-shadow-lg" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.8)' }}>{launch.rocket?.name || 'N/A'}</p>
+                  <p className="font-light text-white text-md md:text-lg tracking-wide drop-shadow-lg" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.8)' }}>{launch.rocket?.name || 'N/A'}</p>
                 </div>
                 <div>
                   <span className="text-gray-300 text-xs tracking-widest uppercase block mb-2 drop-shadow-lg">Mission</span>
-                  <p className="font-light text-white text-lg tracking-wide drop-shadow-lg" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.8)' }}>{launch.mission?.name || 'N/A'}</p>
+                  <p className="font-light text-white text-md md:text-lg tracking-wide drop-shadow-lg" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.8)' }}>{launch.mission?.name || 'N/A'}</p>
                 </div>
                 <div>
                   <span className="text-gray-300 text-xs tracking-widest uppercase block mb-2 drop-shadow-lg">Location</span>
-                  <p className="font-light text-white text-lg tracking-wide drop-shadow-lg" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.8)' }}>{launch.pad?.location || 'N/A'}</p>
+                  <p className="font-light text-white text-md md:text-lg tracking-wide drop-shadow-lg" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.8)' }}>{launch.pad?.location || 'N/A'}</p>
                 </div>
                 <div>
                   <span className="text-gray-300 text-xs tracking-widest uppercase block mb-2 drop-shadow-lg">Provider</span>
-                  <p className="font-light text-white text-lg tracking-wide drop-shadow-lg" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.8)' }}>{launch.provider || 'N/A'}</p>
+                  <p className="font-light text-white text-md md:text-lg tracking-wide drop-shadow-lg" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.8)' }}>{launch.provider || 'N/A'}</p>
                 </div>
               </div>
 
@@ -130,7 +130,7 @@ const LaunchDetail = () => {
                     Mission Description
                   </h2>
                   <div className="h-px w-20 mx-auto mb-6" style={{ backgroundColor: '#FF6B35', boxShadow: '0 0 15px rgba(255, 107, 53, 0.8)' }}></div>
-                  <p className="text-gray-200 font-light drop-shadow-lg" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.8)' }}>
+                  <p className="text-gray-200 font-light drop-shadow-lg text-md md:text-lg" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.8)' }}>
                     {launch.mission.description}
                   </p>
                 </div>
