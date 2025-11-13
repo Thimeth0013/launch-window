@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchLaunches } from '../services/api';
+import axios from 'axios';
 import LaunchCard from '../components/LaunchCard';
 import Particles from '../components/Particles';
 import { Loader2, Search } from 'lucide-react';
@@ -8,6 +9,7 @@ import logo from '../assets/logo.png';
 const Home = () => {
   const [launches, setLaunches] = useState([]);
   const [filteredLaunches, setFilteredLaunches] = useState([]);
+  const [streamCounts, setStreamCounts] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -43,6 +45,22 @@ const Home = () => {
       const data = await fetchLaunches(20);
       setLaunches(data);
       setFilteredLaunches(data);
+      
+      // Fetch stream counts for each launch
+      const counts = {};
+      await Promise.all(
+        data.map(async (launch) => {
+          try {
+            const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+            const response = await axios.get(`${API_BASE_URL}/streams/launch/${launch.id}`);
+            counts[launch.id] = response.data?.length || 0;
+          } catch (err) {
+            counts[launch.id] = 0;
+          }
+        })
+      );
+      setStreamCounts(counts);
+      
     } catch (err) {
       setError(err.message);
     } finally {
@@ -111,8 +129,8 @@ const Home = () => {
 
       {/* Foreground Content */}
       <div className="relative z-10">
-      <div className='md:fixed w-full z-100'>
-      <header
+        <div className='md:fixed w-full z-100'>
+          <header
             className="border-b-1 py-3 bg-black text-left"
             style={{ borderColor: '#18BBF7' }}
           >
@@ -128,14 +146,13 @@ const Home = () => {
                 <h1 className="text-lg md:text-2xl font-bold text-[#18BBF7]">Launch Window</h1>
               </div>
 
-
               {/* Old-school style date/time */}
               <div className="text-[#18BBF7] font-mono text-right tracking-widest text-xs md:text-sm">
                 <div>{formattedTime} | {formattedDate.toUpperCase()}</div>
               </div>
             </div>
           </header>
-          </div>
+        </div>
 
         <main className="container mx-auto px-8 py-6 md:py-28">
           <div className="mb-12 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
@@ -177,7 +194,11 @@ const Home = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {filteredLaunches.map((launch) => (
-                <LaunchCard key={launch.id} launch={launch} />
+                <LaunchCard 
+                  key={launch.id} 
+                  launch={launch}
+                  streamCount={streamCounts[launch.id] || 0}
+                />
               ))}
             </div>
           )}
