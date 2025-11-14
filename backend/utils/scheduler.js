@@ -118,8 +118,8 @@ const updateLaunchesWithStreamCleanup = async () => {
 export const startScheduler = () => {
   console.log('🕐 Starting schedulers...');
 
-  // Schedule 1: Update launches every 30 minutes with stream cleanup
-  cron.schedule('*/30 * * * *', async () => {
+  // Schedule 1: Update launches every 10 minutes with stream cleanup
+  cron.schedule('*/10 * * * *', async () => {
     await updateLaunchesWithStreamCleanup();
   });
 
