@@ -13,8 +13,9 @@ const Home = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-
   const [time, setTime] = useState(new Date());
+  const [showNavbar, setShowNavbar] = useState(true);
+  const [navbarSolid, setNavbarSolid] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -45,22 +46,23 @@ const Home = () => {
       const data = await fetchLaunches(20);
       setLaunches(data);
       setFilteredLaunches(data);
-      
-      // Fetch stream counts for each launch
+
       const counts = {};
       await Promise.all(
         data.map(async (launch) => {
           try {
-            const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-            const response = await axios.get(`${API_BASE_URL}/streams/launch/${launch.id}`);
+            const API_BASE_URL =
+              import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+            const response = await axios.get(
+              `${API_BASE_URL}/streams/launch/${launch.id}`
+            );
             counts[launch.id] = response.data?.length || 0;
-          } catch (err) {
+          } catch {
             counts[launch.id] = 0;
           }
         })
       );
       setStreamCounts(counts);
-      
     } catch (err) {
       setError(err.message);
     } finally {
@@ -90,12 +92,38 @@ const Home = () => {
     setFilteredLaunches(filtered);
   }, [searchQuery, launches]);
 
+  // --- Navbar scroll behavior ---
+  useEffect(() => {
+    let lastScrollY = window.scrollY;
+
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+
+      // Hide navbar when scrolling down, show when scrolling up
+      if (currentScrollY > lastScrollY) {
+        setShowNavbar(false);
+      } else {
+        setShowNavbar(true);
+      }
+
+      // Make navbar solid black after scrolling 60px
+      setNavbarSolid(currentScrollY > 60);
+
+      lastScrollY = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-black text-white">
         <div className="flex flex-col items-center">
           <Loader2 className="w-16 h-16 animate-spin" style={{ color: '#18BBF7' }} />
-          <span className="mt-6 text-2xl font-light tracking-widest uppercase">Loading launches</span>
+          <span className="mt-6 text-2xl font-light tracking-widest uppercase">
+            Loading launches
+          </span>
         </div>
       </div>
     );
@@ -105,7 +133,9 @@ const Home = () => {
     return (
       <div className="flex justify-center items-center min-h-screen bg-black text-white">
         <div className="border-4 border-red-600 px-12 py-8">
-          <div className="text-red-500 text-xl font-light tracking-wide">Error: {error}</div>
+          <div className="text-red-500 text-xl font-light tracking-wide">
+            Error: {error}
+          </div>
         </div>
       </div>
     );
@@ -113,7 +143,6 @@ const Home = () => {
 
   return (
     <div className="relative min-h-screen bg-black text-white overflow-hidden">
-      {/* Background Particles */}
       <div className="absolute inset-0 z-0">
         <Particles
           particleColors={['#ffffff', '#ffffff']}
@@ -127,40 +156,42 @@ const Home = () => {
         />
       </div>
 
-      {/* Foreground Content */}
       <div className="relative z-10">
-        <div className='md:fixed w-full z-100'>
-          <header
-            className="border-b-1 py-3 bg-black text-left"
-            style={{ borderColor: '#18BBF7' }}
-          >
-            <div className="container mx-auto flex items-center justify-between px-8">
-              {/* Title and tagline */}
-              <div className="flex items-center gap-2 md:gap-2 pt-1 pb-1 group">
-                <img
-                  src={logo}
-                  alt="logo"
-                  className="md:h-10 h-8 transition-transform duration-600 group-hover:rotate-y-180 "
-                  style={{ transformStyle: 'preserve-3d' }}
-                />
-                <h1 className="text-lg md:text-2xl font-bold text-[#18BBF7]">Launch Window</h1>
-              </div>
+        {/* Navbar */}
+        <header
+          className={`fixed w-full top-0 left-0 transition-all z-1000 ${
+            showNavbar ? 'translate-y-0' : '-translate-y-full'
+          } ${navbarSolid ? 'bg-black' : 'bg-transparent'} border-b`}
+          style={{ borderColor: '#18BBF7' }}
+        >
+          <div className="container mx-auto flex items-center justify-between px-8 py-3">
+            <div className="flex items-center gap-2 md:gap-2 pt-1 pb-1 group">
+              <img
+                src={logo}
+                alt="logo"
+                className="md:h-10 h-8 transition-transform duration-600 group-hover:rotate-y-180"
+                style={{ transformStyle: 'preserve-3d' }}
+              />
+              <h1 className="text-lg md:text-2xl font-bold text-[#18BBF7]">
+                LAUNCH WINDOW
+              </h1>
+            </div>
 
-              {/* Old-school style date/time */}
-              <div className="text-[#18BBF7] font-mono text-right tracking-widest text-xs md:text-sm">
-                <div>{formattedTime} | {formattedDate.toUpperCase()}</div>
+            <div className="text-[#18BBF7] font-mono text-right tracking-widest text-xs md:text-sm">
+              <div>
+                {formattedTime} | {formattedDate.toUpperCase()}
               </div>
             </div>
-          </header>
-        </div>
+          </div>
+        </header>
 
         <main className="container mx-auto px-8 py-6 md:py-28">
           <div className="mb-12 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
             <h2
-              className="text-2xl md:text-3xl font-bold tracking-wide"
+              className="text-xl md:text-2xl font-bold tracking-wide"
               style={{ color: '#FF6B35' }}
             >
-              Upcoming Launches
+              UPCOMING LAUNCHES
             </h2>
 
             <div className="relative max-w-md w-full group">
@@ -194,8 +225,8 @@ const Home = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {filteredLaunches.map((launch) => (
-                <LaunchCard 
-                  key={launch.id} 
+                <LaunchCard
+                  key={launch.id}
                   launch={launch}
                   streamCount={streamCounts[launch.id] || 0}
                 />
