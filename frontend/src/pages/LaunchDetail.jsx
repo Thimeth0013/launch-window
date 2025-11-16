@@ -3,13 +3,121 @@ import { useParams, Link } from 'react-router-dom';
 import { fetchLaunchById, fetchStreamsForLaunch } from '../services/api';
 import Countdown from '../components/Countdown';
 import StreamGrid from '../components/StreamGrid';
-import { ChevronLeft, Loader2 } from 'lucide-react';
+import { ChevronLeft, Loader2, Pin } from 'lucide-react';
 
 const LaunchDetail = () => {
   const { id } = useParams();
   const [launch, setLaunch] = useState(null);
   const [streams, setStreams] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // In LaunchDetail.jsx
+  const openCountdownPiP = async () => {
+    if (!('documentPictureInPicture' in window)) {
+      alert('Picture-in-Picture not supported in your browser');
+      return;
+    }
+
+    const pipWindow = await window.documentPictureInPicture.requestWindow({
+      width: 20,
+      height: 20,
+    });
+
+    // Copy styles to PiP window
+    [...document.styleSheets].forEach((styleSheet) => {
+      try {
+        const cssRules = [...styleSheet.cssRules].map((rule) => rule.cssText).join('');
+        const style = document.createElement('style');
+        style.textContent = cssRules;
+        pipWindow.document.head.appendChild(style);
+      } catch (e) {}
+    });
+
+    // Create countdown display optimized for PiP
+    pipWindow.document.body.innerHTML = `
+      <style>
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        
+        body {
+          overflow: hidden;
+          background: linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 100%);
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        
+        .container {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          padding: 6px;
+          gap: 4px;
+        }
+        
+        .title {
+          font-size: 13px;
+          color: #18BBF7;
+          font-weight: 600;
+          text-align: center;
+          line-height: 1.3;
+          text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        
+        .countdown {
+          font-size: 16px;
+          font-weight: bold;
+          color: #FF6B35;
+          font-family: 'Courier New', monospace;
+          text-shadow: 0 2px 8px rgba(255, 107, 53, 0.5);
+          letter-spacing: 1px;
+        }
+        
+        .pulse {
+          animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+      </style>
+      <div class="container">
+        <div class="title">${launch.name}</div>
+        <div id="pip-countdown" class="countdown pulse"></div>
+      </div>
+    `;
+
+    // Update countdown
+    const updateCountdown = () => {
+      const now = new Date();
+      const target = new Date(launch.date);
+      const diff = target - now;
+
+      if (diff <= 0) {
+        pipWindow.document.getElementById('pip-countdown').textContent = 'LAUNCHED!';
+        return;
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const secs = Math.floor((diff % (1000 * 60)) / 1000);
+
+      pipWindow.document.getElementById('pip-countdown').textContent = 
+        `${days}d ${hours}h ${mins}m ${secs}s`;
+    };
+
+    const interval = setInterval(updateCountdown, 1000);
+    updateCountdown();
+
+    // Cleanup when PiP closes
+    pipWindow.addEventListener('unload', () => clearInterval(interval));
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -74,17 +182,24 @@ const LaunchDetail = () => {
 
         {/* Content Overlay */}
         <div className="relative z-10 flex flex-col flex-1">
-          {/* Header */}
-          <header className="pt-8">
-            <div className="container mx-4 md:mx-10 fixed z-100">
-              <Link 
-                to="/" 
-                className="inline-flex items-center gap-2 text-[#FF6B35] md:text-white/80 hover:text-[#FF6B35] transition-all group"
-              >
-                <ChevronLeft className="w-8 h-8 transition-transform group-hover:-translate-x-1 bg-white md:bg-white/10 backdrop-blur-md  hover:bg-white" />
-              </Link>
-            </div>
-          </header>
+        {/* Header */}
+        <header className="pt-8">
+          <div className="container mx-2 md:mx-8 px-4 md:px-0 fixed left-0 right-0 z-100 flex items-center justify-between">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 text-[#FF6B35] md:text-white/80 hover:text-[#FF6B35] transition-all group"
+            >
+              <ChevronLeft className="w-8 h-8 transition-transform group-hover:-translate-x-1 bg-white md:bg-white/10 backdrop-blur-md hover:bg-white p-1" />
+            </Link>
+
+            <button
+              onClick={openCountdownPiP}
+              className="bg-white/10 text-[#FF6B35] md:text-white/80 font-semibold hover:bg-white hover:text-[#FF6B35] transition-all"
+            >
+              <Pin className="w-8 h-8 p-1 transition-transform group-hover:-translate-x-1 bg-white md:bg-white/10 backdrop-blur-md hover:bg-white"/>
+            </button>
+          </div>
+        </header>
 
           {/* Main Content - Vertically Centered */}
           <div className="flex-1 flex items-center justify-center py-12 pt-6">
