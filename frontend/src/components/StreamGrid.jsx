@@ -87,28 +87,14 @@ const StreamCard = memo(({ stream }) => {
 
         {/* Content */}
         <div className="p-5 flex-1 flex flex-col">
-          <h4 className="text-md font-bold mb-2 tracking-wide uppercase text-white group-hover:text-[#18BBF7] transition-colors line-clamp-2">
+          <h4 className="text-md font-bold mb-1 tracking-wide uppercase text-white group-hover:text-[#18BBF7] transition-colors line-clamp-2">
             {stream.title}
           </h4>
-
+          <div className="h-px my-2" style={{ backgroundColor: '#18BBF7', opacity: 0.3 }} />
           <p className="text-white text-xs tracking-wider font-light flex items-center gap-2 uppercase">
             {getPlatformIcon(stream.platform)}
             {stream.channelName || 'Unknown Channel'}
           </p>
-
-          <div className="h-px my-3" style={{ backgroundColor: '#18BBF7', opacity: 0.3 }} />
-
-          <button
-            onClick={handleWatchNow}
-            disabled={!isActive}
-            className={`w-full py-2 mt-auto text-sm font-semibold border-2 transition-colors ${
-              isActive
-                ? 'border-[#FF6B35] text-[#FF6B35] hover:bg-[#FF6B35] hover:text-black'
-                : 'border-gray-600 text-gray-500 cursor-not-allowed'
-            }`}
-          >
-            {isActive ? 'Watch Now' : 'Starting Soon'}
-          </button>
         </div>
       </div>
     </div>

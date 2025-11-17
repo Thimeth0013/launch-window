@@ -185,7 +185,7 @@ const Home = () => {
           </div>
         </header>
 
-        <main className="container mx-auto px-8 py-6 md:py-28">
+        <main className="container mx-auto px-8 py-28">
           <div className="mb-12 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
             <h2
               className="text-xl md:text-2xl font-bold tracking-wide"
