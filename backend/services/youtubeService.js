@@ -3,264 +3,57 @@ import Stream from '../models/Stream.js';
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
 
-// Known space streaming channels - ONLY SEARCH THESE
-const KNOWN_CHANNELS = [
-  'UC6uKrU_WqJ1R2HMTY3LIx5Q', // Everyday Astronaut
-  'UCSUu1lih2RifWkKtDOJdsBA', // NASASpaceflight
-  'UCGCndz0n0NHmLHfd64FRjIA', // The Launch Pad
-  'UCoLdERT4-TJ82PJOHSrsZLQ', // Spaceflight Now
-  'UCVTomc35agH1SM6kCKzwW_g', // VideoFromSpace
-  'UC2_vpnza621Sa0cf_xhqJ8Q', // Raw Space
-  'UC9T3XwCjQdzpSp7IzGkbtJA', //International Rocket Launches
-];
-
-// Build a more specific search query based on mission type
-function buildSearchQuery(launchName) {
-  const rocketName = getRocketName(launchName);
-  const missionInfo = extractMissionInfo(launchName);
-  
-  // For Starlink missions, include the group number in search
-  if (missionInfo.type === 'starlink' && missionInfo.group) {
-    return `${rocketName} Starlink ${missionInfo.group}`;
-  }
-  
-  // For Starship missions, include flight number
-  if (missionInfo.type === 'starship' && missionInfo.flightNumber) {
-    return `Starship Flight ${missionInfo.flightNumber}`;
-  }
-  
-  // For missions with specific payloads
-  if (missionInfo.type === 'payload' && missionInfo.payload) {
-    return `${rocketName} ${missionInfo.payload}`;
-  }
-  
-  // For high-profile rockets without specific missions
-  if (isHighProfile(rocketName)) {
-    return rocketName;
-  }
-  
-  // Default: just rocket name
-  return rocketName;
-}
-
-// Check channel for upcoming streams only
-export const checkChannelUpcomingStreams = async (channelId, launchName) => {
-  const apiKey = process.env.YOUTUBE_API_KEY;
-  
-  if (!apiKey || apiKey === 'your_youtube_api_key_here') {
-    return [];
-  }
-
-  try {
-    // Use more general search for Everyday Astronaut (they use casual titles)
-    const isEverydayAstronaut = channelId === 'UC6uKrU_WqJ1R2HMTY3LIx5Q';
-    const searchQuery = isEverydayAstronaut 
-      ? getRocketName(launchName)  // Just rocket name for EA
-      : buildSearchQuery(launchName);  // Specific query for others
-    
-    const response = await axios.get(`${YOUTUBE_API_BASE}/search`, {
-      params: {
-        key: apiKey,
-        part: 'snippet',
-        channelId: channelId,
-        type: 'video',
-        eventType: 'upcoming',
-        maxResults: 20,
-        order: 'date',
-        q: searchQuery
-      }
-    });
-
-    const items = response.data.items || [];
-    const filtered = filterMatchingStreams(items, launchName, false);
-    
-    // Ensure we always return an array
-    return Array.isArray(filtered) ? filtered : [];
-  } catch (error) {
-    console.error(`Error checking channel ${channelId}:`, error.message);
-    return []; // Always return empty array on error
-  }
+// Known space streaming channels with their search behavior
+const CHANNEL_CONFIGS = {
+  'UC6uKrU_WqJ1R2HMTY3LIx5Q': { // Everyday Astronaut
+    name: 'Everyday Astronaut',
+    searchStyle: 'casual', // Uses casual titles, needs flexible matching
+  },
+  'UCSUu1lih2RifWkKtDOJdsBA': { // NASASpaceflight
+    name: 'NASASpaceflight',
+    searchStyle: 'formal', // Uses formal "SpaceX F9 : Starlink group X-Y"
+  },
+  'UCGCndz0n0NHmLHfd64FRjIA': { // The Launch Pad
+    name: 'The Launch Pad',
+    searchStyle: 'standard',
+  },
+  'UCoLdERT4-TJ82PJOHSrsZLQ': { // Spaceflight Now
+    name: 'Spaceflight Now',
+    searchStyle: 'descriptive', // Uses "Watch live: SpaceX Falcon 9..."
+  },
+  'UCVTomc35agH1SM6kCKzwW_g': { // VideoFromSpace
+    name: 'VideoFromSpace',
+    searchStyle: 'standard',
+  },
+  'UC2_vpnza621Sa0cf_xhqJ8Q': { // Raw Space
+    name: 'Raw Space',
+    searchStyle: 'standard',
+  },
+  'UC9T3XwCjQdzpSp7IzGkbtJA': { // International Rocket Launches
+    name: 'International Rocket Launches',
+    searchStyle: 'standard',
+  },
+  'UCLA_DiR1FfKNvjuUpBHmylQ': { // NASA
+    name: 'NASA',
+    searchStyle: 'official', // Official NASA coverage
+  },
 };
 
-// Filter streams based on launch details
-function filterMatchingStreams(items, launchName, isLive) {
-  const rocketName = getRocketName(launchName);
-  const missionInfo = extractMissionInfo(launchName);
-  const isHighProfileRocket = isHighProfile(rocketName);
-  
-  return items.filter(item => {
-    const title = item.snippet.title.toLowerCase();
-    const description = (item.snippet.description || '').toLowerCase();
-    const combined = `${title} ${description}`;
-    
-    // Must mention the rocket name
-    if (!combined.includes(rocketName.toLowerCase())) {
-      return false;
-    }
-    
-    // HIGH PROFILE ROCKETS: Accept any video mentioning the rocket
-    // (Starship, New Glenn, SLS, Falcon Heavy - rare and exciting launches)
-    if (isHighProfileRocket) {
-      // For Starship, prefer videos mentioning the flight number but accept all
-      if (missionInfo.type === 'starship' && missionInfo.flightNumber) {
-        const flightRegex = new RegExp(`flight\\s*${missionInfo.flightNumber}`, 'i');
-        if (flightRegex.test(combined)) {
-          return true; // Exact match is best
-        }
-      }
-      // Accept ANY video with the high-profile rocket name
-      // This includes payload missions like "New Glenn | EscaPADE"
-      return true;
-    }
-    
-    // MATCHING for Starlink missions (frequent launches - need strict matching)
-    if (missionInfo.type === 'starlink' && missionInfo.group) {
-      // Must contain "starlink" AND the group number
-      if (!combined.includes('starlink')) {
-        return false;
-      }
-      
-      // Look for the group number in various formats
-      const groupParts = missionInfo.group.split('-');
-      if (groupParts.length === 2) {
-        // Match patterns like: "6-87", "6 87", "group 6-87", etc.
-        const patterns = [
-          `${groupParts[0]}-${groupParts[1]}`,     // "6-87"
-          `${groupParts[0]} ${groupParts[1]}`,     // "6 87"
-          `${groupParts[0]}/${groupParts[1]}`,     // "6/87"
-          `group ${groupParts[0]}-${groupParts[1]}`, // "group 6-87"
-          `group ${groupParts[0]} ${groupParts[1]}`  // "group 6 87"
-        ];
-        
-        const matched = patterns.some(pattern => combined.includes(pattern.toLowerCase()));
-        if (matched) {
-          return true;
-        }
-      }
-      
-      // Fallback: just check if the group string appears anywhere
-      return combined.includes(missionInfo.group.toLowerCase());
-    }
-    
-    // For missions with specific payloads (non-high-profile rockets only)
-    if (missionInfo.type === 'payload' && missionInfo.payload) {
-      const payloadLower = missionInfo.payload.toLowerCase();
-      // Payload name should appear in title or description
-      return combined.includes(payloadLower);
-    }
-    
-    // For unknown payloads, just match rocket name
-    if (missionInfo.type === 'unknown') {
-      // Accept any video with the rocket name
-      return true;
-    }
-    
-    return false;
-  }).map(item => ({
-    streamId: item.id.videoId,
-    url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
-    title: item.snippet.title,
-    channelName: item.snippet.channelTitle,
-    channelId: item.snippet.channelId,
-    thumbnailUrl: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
-    scheduledStartTime: item.snippet.publishedAt,
-    platform: 'youtube',
-    isLive: isLive
-  }));
-}
-
-// Main function to match streams to launches
-export const matchStreamsToLaunches = async (launches) => {
-  console.log(`\n=== Starting stream matching for ${launches.length} launches ===`);
-  console.log(`Only searching ${KNOWN_CHANNELS.length} known channels\n`);
-  
-  let totalStreamsFound = 0;
-  
-  for (const launch of launches) {
-    const launchDate = new Date(launch.date);
-    const now = new Date();
-    
-    const daysUntilLaunch = (launchDate - now) / (1000 * 60 * 60 * 24);
-    
-    // Only search for launches within 2 day to conserve API quota
-    if (daysUntilLaunch < 0 || daysUntilLaunch > 2) {
-      console.log(`⏭️  Skipping "${launch.name}" (${daysUntilLaunch.toFixed(1)} days away)`);
-      continue;
-    }
-    
-    const missionInfo = extractMissionInfo(launch.name);
-    const rocketName = getRocketName(launch.name);
-    const isHighProfileRocket = isHighProfile(rocketName);
-    const searchQuery = buildSearchQuery(launch.name);
-    
-    console.log(`\n🔍 Searching for: ${launch.name}`);
-    console.log(`   Rocket: ${rocketName}${isHighProfileRocket ? ' 🌟 (High-profile)' : ''}`);
-    console.log(`   Search query: "${searchQuery}"`);
-    if (missionInfo.type === 'starlink') {
-      console.log(`   Mission: Starlink Group ${missionInfo.group}`);
-    } else if (missionInfo.type === 'payload') {
-      console.log(`   Mission: ${missionInfo.payload}`);
-    } else if (isHighProfileRocket) {
-      console.log(`   Mission: Any coverage accepted`);
-    }
-    console.log(`   Days until launch: ${daysUntilLaunch.toFixed(1)}`);
-    
-    // Search ONLY in known channels
-    const allStreams = [];
-    
-    for (const channelId of KNOWN_CHANNELS) {
-      // Check for upcoming scheduled streams only
-      const upcomingStreams = await checkChannelUpcomingStreams(channelId, launch.name);
-      
-      // Ensure we have an array (in case of errors)
-      const streams = Array.isArray(upcomingStreams) ? upcomingStreams : [];
-      
-      if (streams.length > 0) {
-        console.log(`   ✅ Found ${streams.length} streams from channel ${channelId}`);
-        streams.forEach(s => console.log(`      📺 "${s.title}"`));
-      }
-      
-      allStreams.push(...streams);
-      
-      // Add delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 300));
-    }
-    
-    const uniqueStreams = deduplicateStreams(allStreams);
-    
-    console.log(`   📊 Total unique streams: ${uniqueStreams.length}`);
-    totalStreamsFound += uniqueStreams.length;
-    
-    // Save streams to database
-    for (const stream of uniqueStreams) {
-      try {
-        const matchScore = calculateMatchScore(stream.title, launch.name, missionInfo);
-        await Stream.findOneAndUpdate(
-          { streamId: stream.streamId },
-          {
-            ...stream,
-            launchId: launch.id,
-            matchScore: matchScore
-          },
-          { upsert: true, new: true }
-        );
-        console.log(`   💾 Saved: "${stream.title}" (score: ${matchScore.toFixed(2)})`);
-      } catch (error) {
-        console.error(`   ❌ Error saving stream:`, error.message);
-      }
-    }
-  }
-  
-  console.log(`\n=== Stream matching completed: ${totalStreamsFound} total streams found ===\n`);
+// API Quota Management
+// YouTube API: 10,000 units/day
+// search.list cost: 100 units per call
+// Running twice daily (noon & midnight), with 8 channels and launches within 2 days
+// Estimated: ~2-5 launches per run × 8 channels × 2 runs = 320-800 units/day (well within limit)
+const API_QUOTA_TRACKER = {
+  callsThisRun: 0,
+  maxCallsPerRun: 50, // Safety limit per run
 };
 
 // ========== HELPER FUNCTIONS ==========
 
-// Check if this is a high-profile rocket (rare, exciting launches)
+// Check if this is a high-profile rocket (rare launches - use WIDE search)
 function isHighProfile(rocketName) {
   const name = rocketName.toLowerCase();
-  
-  // Major rockets with infrequent launches
   return (
     name.includes('starship') ||
     name.includes('new glenn') ||
@@ -286,6 +79,7 @@ function getRocketName(launchName) {
   if (lower.includes('long march')) return 'Long March';
   if (lower.includes('ariane')) return 'Ariane';
   if (lower.includes('soyuz')) return 'Soyuz';
+  if (lower.includes('vulcan')) return 'Vulcan';
   
   // Default: first part before |
   return launchName.split('|')[0].trim();
@@ -295,39 +89,41 @@ function getRocketName(launchName) {
 function extractMissionInfo(launchName) {
   const lower = launchName.toLowerCase();
   
-  // Check for Starlink missions
+  // Check for Starlink missions - NEEDS STRICT MATCHING
   if (lower.includes('starlink')) {
     const match = launchName.match(/Starlink Group ([\d-]+)/i);
     if (match) {
       return {
         type: 'starlink',
         group: match[1], // e.g., "6-87"
-        payload: null,
-        flightNumber: null
+        isFrequent: true, // Frequent launches need strict matching
       };
     }
   }
   
-  // Check for Starship flights
+  // Check for Starship flights - WIDE SEARCH (rare launches)
   if (lower.includes('starship')) {
     const match = launchName.match(/Flight (\d+)/i);
-    if (match) {
-      return {
-        type: 'starship',
-        group: null,
-        payload: null,
-        flightNumber: match[1]
-      };
-    }
+    return {
+      type: 'starship',
+      flightNumber: match ? match[1] : null,
+      isFrequent: false, // Rare launches allow wide matching
+    };
+  }
+  
+  // Check for New Glenn - WIDE SEARCH (rare launches)
+  if (lower.includes('new glenn')) {
+    return {
+      type: 'new-glenn',
+      isFrequent: false,
+    };
   }
   
   // Check for unknown payloads
   if (lower.includes('unknown payload')) {
     return {
       type: 'unknown',
-      group: null,
-      payload: null,
-      flightNumber: null
+      isFrequent: false,
     };
   }
   
@@ -338,20 +134,181 @@ function extractMissionInfo(launchName) {
     if (payload && !payload.includes('Unknown')) {
       return {
         type: 'payload',
-        group: null,
         payload: payload,
-        flightNumber: null
+        isFrequent: false,
       };
     }
   }
   
   return {
     type: 'unknown',
-    group: null,
-    payload: null,
-    flightNumber: null
+    isFrequent: false,
   };
 }
+
+// Build search query based on rocket type and channel
+function buildSearchQuery(launchName, channelId) {
+  const rocketName = getRocketName(launchName);
+  const missionInfo = extractMissionInfo(launchName);
+  const channelConfig = CHANNEL_CONFIGS[channelId];
+  const isHighProfileRocket = isHighProfile(rocketName);
+  
+  // HIGH-PROFILE ROCKETS (Starship, New Glenn, etc.) - WIDE SEARCH
+  if (isHighProfileRocket) {
+    // Just search for the rocket name - accept all matches
+    return rocketName;
+  }
+  
+  // FREQUENT LAUNCHES (Falcon 9 Starlink) - STRICT SEARCH
+  if (missionInfo.type === 'starlink' && missionInfo.group) {
+    // Search for "Starlink" - we'll filter by exact group number later
+    return `${rocketName} Starlink`;
+  }
+  
+  // PAYLOAD MISSIONS - MODERATE STRICTNESS
+  if (missionInfo.type === 'payload' && missionInfo.payload) {
+    return `${rocketName} ${missionInfo.payload}`;
+  }
+  
+  // DEFAULT - Just rocket name
+  return rocketName;
+}
+
+// Check if stream matches launch with appropriate strictness
+function isStreamMatch(item, launchName, missionInfo, isHighProfileRocket) {
+  const title = item.snippet.title.toLowerCase();
+  const description = (item.snippet.description || '').toLowerCase();
+  const combined = `${title} ${description}`;
+  const rocketName = getRocketName(launchName).toLowerCase();
+  
+  // Must mention the rocket name (basic requirement)
+  if (!combined.includes(rocketName)) {
+    return false;
+  }
+  
+  // HIGH-PROFILE ROCKETS: Accept ANY video mentioning the rocket
+  // (Starship, New Glenn, SLS, Falcon Heavy, Vulcan - rare launches)
+  if (isHighProfileRocket) {
+    // For Starship, prefer videos with flight number but accept all
+    if (missionInfo.type === 'starship' && missionInfo.flightNumber) {
+      const flightRegex = new RegExp(`flight\\s*${missionInfo.flightNumber}`, 'i');
+      if (flightRegex.test(combined)) {
+        return true; // Perfect match
+      }
+    }
+    // Accept ANY video with the high-profile rocket name
+    return true;
+  }
+  
+  // STARLINK MISSIONS: STRICT MATCHING by group number
+  if (missionInfo.type === 'starlink' && missionInfo.group) {
+    // Must contain "starlink"
+    if (!combined.includes('starlink')) {
+      return false;
+    }
+    
+    // EXACT group number match required
+    const groupParts = missionInfo.group.split('-');
+    if (groupParts.length === 2) {
+      // Check for exact group number in various formats
+      const patterns = [
+        `${groupParts[0]}-${groupParts[1]}`,           // "6-87"
+        `${groupParts[0]} ${groupParts[1]}`,           // "6 87"
+        `${groupParts[0]}/${groupParts[1]}`,           // "6/87"
+        `group ${groupParts[0]}-${groupParts[1]}`,     // "group 6-87"
+        `group ${groupParts[0]} ${groupParts[1]}`,     // "group 6 87"
+        `group ${groupParts[0]}/${groupParts[1]}`,     // "group 6/87"
+        `g${groupParts[0]}-${groupParts[1]}`,          // "g6-87"
+        `: ${groupParts[0]}-${groupParts[1]}`,         // ": 6-87" (NASASpaceflight style)
+      ];
+      
+      return patterns.some(pattern => combined.includes(pattern.toLowerCase()));
+    }
+    
+    // Fallback: check if group string appears
+    return combined.includes(missionInfo.group.toLowerCase());
+  }
+  
+  // PAYLOAD MISSIONS: Match payload name
+  if (missionInfo.type === 'payload' && missionInfo.payload) {
+    const payloadLower = missionInfo.payload.toLowerCase();
+    return combined.includes(payloadLower);
+  }
+  
+  // UNKNOWN MISSIONS: Accept any video with rocket name
+  return true;
+}
+
+// Filter and format matching streams
+function filterAndFormatStreams(items, launchName, missionInfo, isHighProfileRocket) {
+  return items
+    .filter(item => isStreamMatch(item, launchName, missionInfo, isHighProfileRocket))
+    .map(item => ({
+      streamId: item.id.videoId,
+      url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
+      title: item.snippet.title,
+      channelName: item.snippet.channelTitle,
+      channelId: item.snippet.channelId,
+      thumbnailUrl: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
+      scheduledStartTime: item.snippet.publishedAt,
+      platform: 'youtube',
+      isLive: false, // We only fetch upcoming
+    }));
+}
+
+// Check channel for UPCOMING streams only
+export const checkChannelUpcomingStreams = async (channelId, launchName) => {
+  const apiKey = process.env.YOUTUBE_API_KEY;
+  
+  if (!apiKey || apiKey === 'your_youtube_api_key_here') {
+    console.error('❌ YouTube API key not configured');
+    return [];
+  }
+
+  // Check quota limit
+  if (API_QUOTA_TRACKER.callsThisRun >= API_QUOTA_TRACKER.maxCallsPerRun) {
+    console.warn('⚠️  API quota limit reached for this run');
+    return [];
+  }
+
+  try {
+    const searchQuery = buildSearchQuery(launchName, channelId);
+    const channelConfig = CHANNEL_CONFIGS[channelId];
+    
+    const response = await axios.get(`${YOUTUBE_API_BASE}/search`, {
+      params: {
+        key: apiKey,
+        part: 'snippet',
+        channelId: channelId,
+        type: 'video',
+        eventType: 'upcoming', // ONLY UPCOMING VIDEOS
+        maxResults: 20,
+        order: 'date',
+        q: searchQuery,
+      },
+      timeout: 10000, // 10 second timeout
+    });
+
+    API_QUOTA_TRACKER.callsThisRun++;
+
+    const items = response.data.items || [];
+    const missionInfo = extractMissionInfo(launchName);
+    const isHighProfileRocket = isHighProfile(getRocketName(launchName));
+    
+    const filtered = filterAndFormatStreams(items, launchName, missionInfo, isHighProfileRocket);
+    
+    return filtered;
+  } catch (error) {
+    if (error.response?.status === 403) {
+      console.error(`❌ YouTube API quota exceeded or invalid key`);
+    } else if (error.code === 'ECONNABORTED') {
+      console.error(`❌ Request timeout for channel ${channelId}`);
+    } else {
+      console.error(`❌ Error checking channel ${channelId}:`, error.message);
+    }
+    return [];
+  }
+};
 
 // Deduplicate streams by video ID
 function deduplicateStreams(streams) {
@@ -365,23 +322,20 @@ function deduplicateStreams(streams) {
   });
 }
 
-// Calculate match score between stream title and launch details
+// Calculate match score
 function calculateMatchScore(streamTitle, launchName, missionInfo) {
   const streamLower = streamTitle.toLowerCase();
-  const launchLower = launchName.toLowerCase();
-  
   let score = 0;
   
-  // Boost for rocket names
   const rocket = getRocketName(launchName).toLowerCase();
   if (streamLower.includes(rocket)) {
     score += 3;
   }
   
-  // Boost for exact mission matches
+  // Exact mission matches get highest scores
   if (missionInfo.type === 'starlink' && missionInfo.group) {
-    if (streamLower.includes(missionInfo.group)) {
-      score += 5; // High score for exact Starlink group match
+    if (streamLower.includes(missionInfo.group.toLowerCase())) {
+      score += 5;
     }
   }
   
@@ -397,14 +351,105 @@ function calculateMatchScore(streamTitle, launchName, missionInfo) {
     }
   }
   
-  // Boost for key terms
-  if (streamLower.includes('launch')) {
-    score += 1;
-  }
-  if (streamLower.includes('live')) {
-    score += 0.5;
+  // Bonus for launch-related keywords
+  if (streamLower.includes('launch')) score += 1;
+  if (streamLower.includes('live')) score += 0.5;
+  if (streamLower.includes('coverage')) score += 0.5;
+  
+  return Math.min(score / 10, 1);
+}
+
+// Main function to match streams to launches
+export const matchStreamsToLaunches = async (launches) => {
+  console.log(`\n${'='.repeat(60)}`);
+  console.log(`🚀 Starting stream matching for ${launches.length} launches`);
+  console.log(`📺 Searching ${Object.keys(CHANNEL_CONFIGS).length} known channels`);
+  console.log(`⏰ Run time: ${new Date().toISOString()}`);
+  console.log(`${'='.repeat(60)}\n`);
+  
+  // Reset quota tracker
+  API_QUOTA_TRACKER.callsThisRun = 0;
+  
+  let totalStreamsFound = 0;
+  let launchesProcessed = 0;
+  
+  for (const launch of launches) {
+    const launchDate = new Date(launch.date);
+    const now = new Date();
+    const daysUntilLaunch = (launchDate - now) / (1000 * 60 * 60 * 24);
+    
+    // Only search for launches within 2 days (conserve API quota)
+    if (daysUntilLaunch < 0 || daysUntilLaunch > 2) {
+      console.log(`⏭️  Skipping "${launch.name}" (${daysUntilLaunch.toFixed(1)} days away)`);
+      continue;
+    }
+    
+    launchesProcessed++;
+    const missionInfo = extractMissionInfo(launch.name);
+    const rocketName = getRocketName(launch.name);
+    const isHighProfileRocket = isHighProfile(rocketName);
+    
+    console.log(`\n${'─'.repeat(60)}`);
+    console.log(`🔍 Launch: ${launch.name}`);
+    console.log(`   🚀 Rocket: ${rocketName}${isHighProfileRocket ? ' ⭐ (High-profile - WIDE search)' : ''}`);
+    
+    if (missionInfo.type === 'starlink') {
+      console.log(`   📡 Mission: Starlink Group ${missionInfo.group} (STRICT matching)`);
+    } else if (missionInfo.type === 'payload') {
+      console.log(`   🛰️  Mission: ${missionInfo.payload}`);
+    } else if (isHighProfileRocket) {
+      console.log(`   ✨ Strategy: Accept ANY coverage for this rare launch`);
+    }
+    
+    console.log(`   📅 T-${daysUntilLaunch.toFixed(1)} days`);
+    
+    // Search all channels
+    const allStreams = [];
+    
+    for (const [channelId, config] of Object.entries(CHANNEL_CONFIGS)) {
+      const upcomingStreams = await checkChannelUpcomingStreams(channelId, launch.name);
+      
+      if (upcomingStreams.length > 0) {
+        console.log(`   ✅ ${config.name}: Found ${upcomingStreams.length} stream(s)`);
+        upcomingStreams.forEach(s => console.log(`      📺 "${s.title}"`));
+      }
+      
+      allStreams.push(...upcomingStreams);
+      
+      // Rate limiting: 300ms delay between requests
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+    
+    const uniqueStreams = deduplicateStreams(allStreams);
+    console.log(`   📊 Total unique streams: ${uniqueStreams.length}`);
+    totalStreamsFound += uniqueStreams.length;
+    
+    // Save streams to database
+    for (const stream of uniqueStreams) {
+      try {
+        const matchScore = calculateMatchScore(stream.title, launch.name, missionInfo);
+        await Stream.findOneAndUpdate(
+          { streamId: stream.streamId },
+          {
+            ...stream,
+            launchId: launch.id,
+            matchScore: matchScore,
+            lastUpdated: new Date(),
+          },
+          { upsert: true, new: true }
+        );
+        console.log(`   💾 Saved: "${stream.title}" (score: ${matchScore.toFixed(2)})`);
+      } catch (error) {
+        console.error(`   ❌ Error saving stream:`, error.message);
+      }
+    }
   }
   
-  // Normalize to 0-1
-  return Math.min(score / 8, 1);
-}
+  console.log(`\n${'='.repeat(60)}`);
+  console.log(`✅ Stream matching completed`);
+  console.log(`   Launches processed: ${launchesProcessed}`);
+  console.log(`   Total streams found: ${totalStreamsFound}`);
+  console.log(`   API calls made: ${API_QUOTA_TRACKER.callsThisRun}`);
+  console.log(`   Quota remaining: ${API_QUOTA_TRACKER.maxCallsPerRun - API_QUOTA_TRACKER.callsThisRun} calls`);
+  console.log(`${'='.repeat(60)}\n`);
+};
