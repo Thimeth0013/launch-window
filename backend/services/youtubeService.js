@@ -7,35 +7,43 @@ const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
 const CHANNEL_CONFIGS = {
   'UC6uKrU_WqJ1R2HMTY3LIx5Q': { // Everyday Astronaut
     name: 'Everyday Astronaut',
-    searchStyle: 'casual', // Uses casual titles, needs flexible matching
+    searchStyle: 'casual',
+    strictness: 'moderate',
   },
   'UCSUu1lih2RifWkKtDOJdsBA': { // NASASpaceflight
     name: 'NASASpaceflight',
-    searchStyle: 'formal', // Uses formal "SpaceX F9 : Starlink group X-Y"
+    searchStyle: 'formal',
+    strictness: 'moderate',
   },
   'UCGCndz0n0NHmLHfd64FRjIA': { // The Launch Pad
     name: 'The Launch Pad',
     searchStyle: 'standard',
+    strictness: 'moderate',
   },
   'UCoLdERT4-TJ82PJOHSrsZLQ': { // Spaceflight Now
     name: 'Spaceflight Now',
-    searchStyle: 'descriptive', // Uses "Watch live: SpaceX Falcon 9..."
+    searchStyle: 'descriptive',
+    strictness: 'moderate',
   },
   'UCVTomc35agH1SM6kCKzwW_g': { // VideoFromSpace
     name: 'VideoFromSpace',
     searchStyle: 'standard',
+    strictness: 'moderate',
   },
   'UC2_vpnza621Sa0cf_xhqJ8Q': { // Raw Space
     name: 'Raw Space',
     searchStyle: 'standard',
+    strictness: 'moderate',
   },
   'UC9T3XwCjQdzpSp7IzGkbtJA': { // International Rocket Launches
     name: 'International Rocket Launches',
     searchStyle: 'standard',
+    strictness: 'strict',
   },
   'UCLA_DiR1FfKNvjuUpBHmylQ': { // NASA
     name: 'NASA',
-    searchStyle: 'official', // Official NASA coverage
+    searchStyle: 'official',
+    strictness: 'moderate',
   },
 };
 
@@ -49,7 +57,7 @@ const API_QUOTA_TRACKER = {
   maxCallsPerRun: 50, // Safety limit per run
 };
 
-// ========== HELPER FUNCTIONS ==========
+// HELPER FUNCTIONS
 
 // Check if this is a high-profile rocket (rare launches - use WIDE search)
 function isHighProfile(rocketName) {
@@ -65,7 +73,7 @@ function isHighProfile(rocketName) {
   );
 }
 
-// Extract rocket name from launch name
+// Extract rocket name with FULL variant for precise matching
 function getRocketName(launchName) {
   const lower = launchName.toLowerCase();
   
@@ -76,9 +84,22 @@ function getRocketName(launchName) {
   if (lower.includes('atlas v')) return 'Atlas V';
   if (lower.includes('delta iv')) return 'Delta IV';
   if (lower.includes('electron')) return 'Electron';
-  if (lower.includes('long march')) return 'Long March';
-  if (lower.includes('ariane')) return 'Ariane';
-  if (lower.includes('soyuz')) return 'Soyuz';
+  
+  if (lower.includes('long march')) {
+    const match = launchName.match(/Long March [\w/-]+/i);
+    if (match) return match[0]; // e.g., "Long March 2C/YZ-1S" or "Long March 2F/G"
+  }
+  
+  if (lower.includes('ariane')) {
+    const match = launchName.match(/Ariane [\w]+/i);
+    if (match) return match[0]; // e.g., "Ariane 5", "Ariane 6"
+  }
+  
+  if (lower.includes('soyuz')) {
+    const match = launchName.match(/Soyuz [\w/-]+/i);
+    if (match) return match[0]; // e.g., "Soyuz 2.1a"
+  }
+  
   if (lower.includes('vulcan')) return 'Vulcan';
   
   // Default: first part before |
@@ -167,28 +188,35 @@ function buildSearchQuery(launchName, channelId) {
   
   // PAYLOAD MISSIONS - MODERATE STRICTNESS
   if (missionInfo.type === 'payload' && missionInfo.payload) {
+    // For strict channels, include payload in search
+    if (channelConfig?.strictness === 'strict') {
+      return `${rocketName} ${missionInfo.payload}`;
+    }
     return `${rocketName} ${missionInfo.payload}`;
   }
   
-  // DEFAULT - Just rocket name
+  // DEFAULT - Just rocket name (including full variant for Long March, Soyuz, etc.)
   return rocketName;
 }
 
 // Check if stream matches launch with appropriate strictness
-function isStreamMatch(item, launchName, missionInfo, isHighProfileRocket) {
+function isStreamMatch(item, launchName, missionInfo, isHighProfileRocket, channelId) {
   const title = item.snippet.title.toLowerCase();
   const description = (item.snippet.description || '').toLowerCase();
   const combined = `${title} ${description}`;
   const rocketName = getRocketName(launchName).toLowerCase();
+  const channelConfig = CHANNEL_CONFIGS[channelId];
   
-  // Must mention the rocket name (basic requirement)
-  if (!combined.includes(rocketName)) {
-    return false;
-  }
+  // Get strictness level
+  const isStrictChannel = channelConfig?.strictness === 'strict';
   
   // HIGH-PROFILE ROCKETS: Accept ANY video mentioning the rocket
   // (Starship, New Glenn, SLS, Falcon Heavy, Vulcan - rare launches)
   if (isHighProfileRocket) {
+    if (!combined.includes(rocketName.toLowerCase())) {
+      return false;
+    }
+    
     // For Starship, prefer videos with flight number but accept all
     if (missionInfo.type === 'starship' && missionInfo.flightNumber) {
       const flightRegex = new RegExp(`flight\\s*${missionInfo.flightNumber}`, 'i');
@@ -229,20 +257,54 @@ function isStreamMatch(item, launchName, missionInfo, isHighProfileRocket) {
     return combined.includes(missionInfo.group.toLowerCase());
   }
   
-  // PAYLOAD MISSIONS: Match payload name
-  if (missionInfo.type === 'payload' && missionInfo.payload) {
-    const payloadLower = missionInfo.payload.toLowerCase();
-    return combined.includes(payloadLower);
+  // ROCKET VARIANT MATCHING (Long March, Soyuz, etc.)
+  // For strict channels like International Rocket Launches
+  if (isStrictChannel) {
+    // Extract base rocket variant (e.g., "long march 2c" from "Long March 2C/YZ-1S")
+    const baseRocket = rocketName.split('/')[0].toLowerCase();
+    
+    // Must contain exact base rocket variant
+    if (!combined.includes(baseRocket)) {
+      return false;
+    }
+    
+    // Additional check: If launch has named payload, stream must mention it
+    if (missionInfo.type === 'payload' && missionInfo.payload) {
+      const payloadLower = missionInfo.payload.toLowerCase();
+      // For "Unknown Payload", we can't match payload, so rely on rocket variant only
+      if (!payloadLower.includes('unknown') && !combined.includes(payloadLower)) {
+        return false;
+      }
+    }
+    
+    return true;
   }
   
-  // UNKNOWN MISSIONS: Accept any video with rocket name
+  // MODERATE STRICTNESS: Check if rocket name appears (with some flexibility)
+  // For rockets with variants, check base rocket family
+  const baseRocketFamily = rocketName.split(/[\s\/]/)[0].toLowerCase(); // "long" from "long march 2c"
+  const fullRocketBase = rocketName.split('/')[0].toLowerCase(); // "long march 2c" from "long march 2c/yz-1s"
+  
+  if (!combined.includes(baseRocketFamily)) {
+    return false;
+  }
+  
+  // PAYLOAD MISSIONS: Match payload name if available
+  if (missionInfo.type === 'payload' && missionInfo.payload) {
+    const payloadLower = missionInfo.payload.toLowerCase();
+    if (!payloadLower.includes('unknown')) {
+      return combined.includes(payloadLower);
+    }
+  }
+  
+  // UNKNOWN MISSIONS: Accept any video with rocket family name
   return true;
 }
 
 // Filter and format matching streams
-function filterAndFormatStreams(items, launchName, missionInfo, isHighProfileRocket) {
+function filterAndFormatStreams(items, launchName, missionInfo, isHighProfileRocket, channelId) {
   return items
-    .filter(item => isStreamMatch(item, launchName, missionInfo, isHighProfileRocket))
+    .filter(item => isStreamMatch(item, launchName, missionInfo, isHighProfileRocket, channelId))
     .map(item => ({
       streamId: item.id.videoId,
       url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
@@ -295,7 +357,7 @@ export const checkChannelUpcomingStreams = async (channelId, launchName) => {
     const missionInfo = extractMissionInfo(launchName);
     const isHighProfileRocket = isHighProfile(getRocketName(launchName));
     
-    const filtered = filterAndFormatStreams(items, launchName, missionInfo, isHighProfileRocket);
+    const filtered = filterAndFormatStreams(items, launchName, missionInfo, isHighProfileRocket, channelId);
     
     return filtered;
   } catch (error) {
@@ -328,7 +390,10 @@ function calculateMatchScore(streamTitle, launchName, missionInfo) {
   let score = 0;
   
   const rocket = getRocketName(launchName).toLowerCase();
-  if (streamLower.includes(rocket)) {
+  const baseRocket = rocket.split('/')[0]; // Get base variant without modifiers
+  
+  // Exact rocket variant match
+  if (streamLower.includes(baseRocket)) {
     score += 3;
   }
   
