@@ -1,195 +1,141 @@
-import cron from 'node-cron';
 import axios from 'axios';
 import Launch from '../models/Launch.js';
-import Stream from '../models/Stream.js';
+import StreamSync from '../models/StreamSync.js';
 
 const LAUNCH_LIBRARY_API = 'https://ll.thespacedevs.com/2.2.0';
 
-// Track API calls per launch to respect rate limits (5 calls per launch per hour)
-const apiCallTracker = new Map(); // { launchId: [timestamps] }
-
-// Check if we can make an API call for this launch
-function canMakeApiCall(launchId) {
-  const now = Date.now();
-  const oneHourAgo = now - 60 * 60 * 1000;
+/**
+ * Check if a specific launch needs a scrub check
+ * Called when user visits the launch detail page
+ */
+export const checkForScrub = async (launch) => {
+  const now = new Date();
+  const launchDate = new Date(launch.date);
+  const hoursUntilLaunch = (launchDate - now) / (1000 * 60 * 60);
   
-  if (!apiCallTracker.has(launchId)) {
-    apiCallTracker.set(launchId, []);
+  // Only check launches within 2 hours before to 10 minutes after
+  // This is the critical window where scrubs happen
+  if (hoursUntilLaunch < -0.167 || hoursUntilLaunch > 2) {
+    return launch; // Outside critical window, return as-is
   }
   
-  // Clean up old timestamps (older than 1 hour)
-  const timestamps = apiCallTracker.get(launchId).filter(ts => ts > oneHourAgo);
-  apiCallTracker.set(launchId, timestamps);
-  
-  // Check if we've made less than 5 calls in the last hour
-  return timestamps.length < 5;
-}
-
-// Record an API call
-function recordApiCall(launchId) {
-  if (!apiCallTracker.has(launchId)) {
-    apiCallTracker.set(launchId, []);
-  }
-  apiCallTracker.get(launchId).push(Date.now());
-}
-
-// Fetch updated launch data from API
-export async function fetchLaunchUpdate(launchId) {
-  if (!canMakeApiCall(launchId)) {
-    console.log(`⚠️  Rate limit: Cannot fetch launch ${launchId} (5 calls/hour limit)`);
-    return null;
-  }
+  console.log(`🚨 [SCRUB_CHECK] Launch "${launch.name}" is at T-${hoursUntilLaunch.toFixed(1)}h - checking for updates...`);
   
   try {
-    console.log(`📡 Fetching updated data for launch ${launchId}...`);
-    const response = await axios.get(`${LAUNCH_LIBRARY_API}/launch/${launchId}/`, {
-      timeout: 30000
+    // Fetch fresh data from SpaceDevs API for this specific launch
+    const response = await axios.get(`${LAUNCH_LIBRARY_API}/launch/${launch.id}/`, {
+      timeout: 10000
     });
     
-    recordApiCall(launchId);
-    return response.data;
+    const apiData = response.data;
+    const oldDate = new Date(launch.date);
+    const newDate = new Date(apiData.net);
+    const delayMinutes = (newDate - oldDate) / (1000 * 60);
+    const newStatus = apiData.status?.name || launch.status;
+    
+    // CASE 1: Launch Completed
+    if (newStatus === 'Success' || newStatus === 'Failure' || newStatus === 'Partial Failure') {
+      console.log(`   ✅ Launch completed with status: ${newStatus}`);
+      
+      const updatedLaunch = await Launch.findOneAndUpdate(
+        { id: launch.id },
+        {
+          status: newStatus,
+          date: newDate,
+          updatedAt: new Date()
+        },
+        { new: true }
+      );
+      
+      return updatedLaunch;
+    }
+    
+    // CASE 2: Scrub/Delay Detected
+    if (Math.abs(delayMinutes) > 5) {
+      const delayType = delayMinutes > 0 ? 'delayed' : 'moved earlier';
+      console.log(`   ⚠️  Launch ${delayType} by ${Math.abs(delayMinutes).toFixed(1)} minutes`);
+      console.log(`   Old: ${oldDate.toLocaleString()}`);
+      console.log(`   New: ${newDate.toLocaleString()}`);
+      
+      // Update launch time
+      const updatedLaunch = await Launch.findOneAndUpdate(
+        { id: launch.id },
+        {
+          date: newDate,
+          status: newStatus,
+          updatedAt: new Date()
+        },
+        { new: true }
+      );
+      
+      // Determine if we need to clear streams
+      const oldDay = oldDate.toISOString().split('T')[0];
+      const newDay = newDate.toISOString().split('T')[0];
+      const dateDayChanged = oldDay !== newDay;
+      const significantDelay = Math.abs(delayMinutes) > 60;
+      
+      if (dateDayChanged || significantDelay) {
+        console.log(`   🗑️  Clearing stream cache (${dateDayChanged ? 'date changed' : 'delay > 1h'})`);
+        await StreamSync.deleteOne({ launchId: launch.id });
+      } else {
+        console.log(`   ℹ️  Minor delay - keeping streams (already live or same day)`);
+      }
+      
+      return updatedLaunch;
+    }
+    
+    // CASE 3: Status changed but time same
+    if (newStatus !== launch.status) {
+      console.log(`   📊 Status changed: ${launch.status} → ${newStatus}`);
+      
+      const updatedLaunch = await Launch.findOneAndUpdate(
+        { id: launch.id },
+        {
+          status: newStatus,
+          date: newDate,
+          updatedAt: new Date()
+        },
+        { new: true }
+      );
+      
+      return updatedLaunch;
+    }
+    
+    // No changes detected
+    console.log(`   ✅ Launch on schedule`);
+    return launch;
+    
   } catch (error) {
-    console.error(`❌ Error fetching launch ${launchId}:`, error.message);
-    return null;
+    console.error(`   ❌ Scrub check failed:`, error.message);
+    // Return original launch data if API fails
+    return launch;
   }
-}
+};
 
-// Mark streams as scrubbed or complete based on launch status
-async function updateStreamStatus(launchId, status) {
+/**
+ * Lightweight check - just updates launch time without YouTube search
+ * Used for minor delays during imminent launches
+ */
+export const quickUpdateLaunchTime = async (launchId) => {
   try {
-    const result = await Stream.updateMany(
-      { launchId: launchId },
-      { 
-        status: status,
+    const response = await axios.get(`${LAUNCH_LIBRARY_API}/launch/${launchId}/`, {
+      timeout: 5000
+    });
+    
+    const apiData = response.data;
+    
+    await Launch.findOneAndUpdate(
+      { id: launchId },
+      {
+        date: new Date(apiData.net),
+        status: apiData.status?.name || 'Unknown',
         updatedAt: new Date()
       }
     );
     
-    if (result.modifiedCount > 0) {
-      console.log(`   📺 Updated ${result.modifiedCount} streams to status: ${status}`);
-    }
+    return true;
   } catch (error) {
-    console.error(`   ❌ Error updating streams:`, error.message);
+    console.error('Quick update failed:', error.message);
+    return false;
   }
-}
-
-// Main function to check launches at T-0
-export const checkLaunchesAtT0 = async () => {
-  const now = new Date();
-  
-  // Find launches within ±10 minutes of scheduled time
-  const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
-  const tenMinutesAhead = new Date(now.getTime() + 10 * 60 * 1000);
-  
-  const launchesAtT0 = await Launch.find({
-    date: { 
-      $gte: tenMinutesAgo,
-      $lte: tenMinutesAhead
-    },
-    status: { 
-      $nin: ['Success', 'Failure', 'Partial Failure'] // Don't check completed launches
-    }
-  });
-  
-  if (launchesAtT0.length === 0) {
-    return; // No launches at T-0
-  }
-  
-  console.log(`\n🚀 === Checking ${launchesAtT0.length} launch(es) at T-0 ===`);
-  
-  for (const launch of launchesAtT0) {
-    console.log(`\n⏰ Launch at T-0: ${launch.name}`);
-    console.log(`   Scheduled: ${launch.date}`);
-    
-    // Fetch updated launch data
-    const updatedData = await fetchLaunchUpdate(launch.id);
-    
-    if (!updatedData) {
-      console.log(`   ⚠️  Could not fetch update, will retry later`);
-      continue;
-    }
-    
-    const oldDate = new Date(launch.date);
-    const newDate = new Date(updatedData.net);
-    const timeDiffHours = (newDate - oldDate) / (1000 * 60 * 60);
-    const newStatus = updatedData.status?.name || launch.status;
-    
-    console.log(`   Old status: ${launch.status} → New status: ${newStatus}`);
-    console.log(`   Old date: ${oldDate.toISOString()}`);
-    console.log(`   New date: ${newDate.toISOString()}`);
-    console.log(`   Time difference: ${timeDiffHours.toFixed(2)} hours`);
-    
-    // Check if launch is complete (Success/Failure)
-    if (newStatus === 'Success' || newStatus === 'Failure' || newStatus === 'Partial Failure') {
-      console.log(`   ✅ Launch complete! Status: ${newStatus}`);
-      
-      await Launch.findOneAndUpdate(
-        { id: launch.id },
-        {
-          status: newStatus,
-          date: newDate,
-          updatedAt: new Date()
-        }
-      );
-      
-      // Mark all streams as complete
-      await updateStreamStatus(launch.id, 'complete');
-      
-      console.log(`   📋 Marked launch and streams as complete`);
-      continue;
-    }
-    
-    // Check for last-minute scrub (delay > 1 hour at T-0)
-    if (Math.abs(timeDiffHours) > 1) {
-      console.log(`   🚨 LAST-MINUTE SCRUB! Launch delayed by ${timeDiffHours.toFixed(1)} hours`);
-      
-      // Update launch data
-      await Launch.findOneAndUpdate(
-        { id: launch.id },
-        {
-          date: newDate,
-          status: newStatus,
-          updatedAt: new Date()
-        }
-      );
-      
-      // Mark streams as scrubbed (the main scheduler will clean them up and find new ones)
-      await updateStreamStatus(launch.id, 'scrubbed');
-      
-      console.log(`   ✅ Scrub recorded - main scheduler will clean up and find new streams`);
-      
-    } else if (Math.abs(timeDiffHours) > 0.05) { // More than 3 minutes
-      console.log(`   ⏱️  Minor delay detected (${timeDiffHours.toFixed(2)} hours)`);
-      
-      // Just update launch data
-      await Launch.findOneAndUpdate(
-        { id: launch.id },
-        {
-          date: newDate,
-          status: newStatus,
-          updatedAt: new Date()
-        }
-      );
-      
-      console.log(`   ✅ Launch data updated`);
-    } else {
-      console.log(`   ✅ Launch on time, no changes needed`);
-    }
-  }
-  
-  console.log(`\n=== T-0 check completed ===\n`);
-};
-
-// Start the scrub detection scheduler
-export const startScrubDetectionScheduler = () => {
-  // Check every 5 minutes for launches at T-0 (less aggressive than every minute)
-  cron.schedule('*/5 * * * *', async () => {
-    try {
-      await checkLaunchesAtT0();
-    } catch (error) {
-      console.error('❌ Scrub detection error:', error.message);
-    }
-  });
-  
-  console.log('🔍 Scrub detection scheduler started (checking every 5 minutes at T-0)');
 };

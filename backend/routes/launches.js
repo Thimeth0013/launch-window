@@ -1,56 +1,124 @@
 import express from 'express';
-import { getUpcomingLaunches, getLaunchById } from '../services/launchService.js';
-import { cleanupOldLaunches, archiveOldLaunches } from '../services/cleanupService.js';
+import { getUpcomingLaunches, getLaunchById, fetchUpcomingLaunches } from '../services/launchService.js';
+import { cleanupOldLaunches, getCleanupStats } from '../services/cleanupService.js';
+import LaunchSync from '../models/LaunchSync.js';
 
 const router = express.Router();
 
-// Get all upcoming launches
+/**
+ * GET /api/launches
+ * Triggered by user visit. Checks if the 1-hour update window has expired.
+ */
 router.get('/', async (req, res) => {
+  const ONE_HOUR = 60 * 60 * 1000;
+  const now = new Date();
+
   try {
-    const limit = parseInt(req.query.limit) || 20;
+    // 1. Check Global Sync status
+    let globalSync = await LaunchSync.findOne({ syncId: 'GLOBAL_LAUNCH_SYNC' });
+
+    // 2. If it's the first time OR 1 hour has passed, sync with external API
+    if (!globalSync || (now - new Date(globalSync.lastUpdated)) > ONE_HOUR) {
+      console.log("⏱️ [LAZY_SYNC] Hour elapsed. Refreshing launch database...");
+      
+      // Update the manifest (This also triggers internal stream cleanup for delays)
+      await fetchUpcomingLaunches();
+
+      // Update the timestamp so the next user doesn't trigger another API call
+      globalSync = await LaunchSync.findOneAndUpdate(
+        { syncId: 'GLOBAL_LAUNCH_SYNC' },
+        { lastUpdated: now },
+        { upsert: true, new: true }
+      );
+    }
+
+    // 3. Fetch data from local MongoDB
+    const limit = parseInt(req.query.limit) || 30;
     const launches = await getUpcomingLaunches(limit);
+    
+    console.log(`✅ [LAUNCHES] Returning ${launches.length} launches`);
     res.json(launches);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("❌ [LAUNCH_ROUTE_ERROR]:", error.message);
+    // If external API fails, we still serve what we have in the DB
+    try {
+      const launches = await getUpcomingLaunches(20);
+      res.json(launches);
+    } catch (dbError) {
+      res.status(500).json({ message: 'Failed to fetch launches', error: dbError.message });
+    }
   }
 });
 
-// Get single launch by ID
+/**
+ * GET /api/launches/:id
+ * Get single launch by ID
+ * Also checks for last-minute scrubs if launch is imminent
+ */
 router.get('/:id', async (req, res) => {
   try {
-    const launch = await getLaunchById(req.params.id);
+    const launchId = req.params.id;
+    console.log(`🔍 [DETAIL_REQUEST] Received request for launch ID: ${launchId}`);
+    
+    let launch = await getLaunchById(launchId);
+    
     if (!launch) {
-      return res.status(404).json({ message: 'Launch not found' });
+      console.log(`❌ [NOT_FOUND] Launch with ID ${launchId} not found in database`);
+      return res.status(404).json({ 
+        message: 'Launch not found',
+        requestedId: launchId 
+      });
     }
+    
+    // Check for scrubs if launch is within critical window (T-2h to T+10min)
+    const now = new Date();
+    const launchDate = new Date(launch.date);
+    const hoursUntilLaunch = (launchDate - now) / (1000 * 60 * 60);
+    
+    if (hoursUntilLaunch >= -0.167 && hoursUntilLaunch <= 2) {
+      console.log(`⏰ [CRITICAL] Launch at T-${hoursUntilLaunch.toFixed(2)}h - checking for updates...`);
+      const { checkForScrub } = await import('../services/scrubDetectionService.js');
+      launch = await checkForScrub(launch);
+    }
+    
+    console.log(`✅ [SUCCESS] Returning launch: ${launch.name}`);
     res.json(launch);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error(`❌ [DETAIL_ERROR] Error fetching launch:`, error);
+    res.status(500).json({ 
+      message: 'Error fetching launch details', 
+      error: error.message 
+    });
   }
 });
 
-// Manual cleanup endpoint (admin use)
+/**
+ * POST /api/launches/cleanup
+ * Manual cleanup endpoint - removes old launches
+ * User-triggered (no cron job needed)
+ */
 router.post('/cleanup', async (req, res) => {
   try {
-    const hours = parseInt(req.body.hours) || 24;
+    const hours = parseInt(req.body.hours) || 48;
     const result = await cleanupOldLaunches(hours);
-    res.json({
-      message: 'Cleanup completed',
-      ...result
+    res.json({ 
+      message: 'Cleanup completed', 
+      ...result 
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-// Manual archive endpoint (admin use)
-router.post('/archive', async (req, res) => {
+/**
+ * GET /api/launches/cleanup/stats
+ * Get cleanup statistics without deleting
+ */
+router.get('/cleanup/stats', async (req, res) => {
   try {
-    const hours = parseInt(req.body.hours) || 24;
-    const result = await archiveOldLaunches(hours);
-    res.json({
-      message: 'Archive completed',
-      ...result
-    });
+    const hours = parseInt(req.query.hours) || 48;
+    const stats = await getCleanupStats(hours);
+    res.json(stats);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
