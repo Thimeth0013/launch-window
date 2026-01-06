@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 const Countdown = ({ targetDate }) => {
-  const [timeLeft, setTimeLeft] = useState(null);
+  const [timeLeft, setTimeLeft] = useState('loading'); // Changed from null to 'loading'
 
   useEffect(() => {
     const calculateTimeLeft = () => {
@@ -18,6 +18,7 @@ const Countdown = ({ targetDate }) => {
       return null;
     };
 
+    // Calculate immediately
     setTimeLeft(calculateTimeLeft());
 
     const timer = setInterval(() => {
@@ -27,6 +28,16 @@ const Countdown = ({ targetDate }) => {
     return () => clearInterval(timer);
   }, [targetDate]);
 
+  // Show loading state while calculating
+  if (timeLeft === 'loading') {
+    return (
+      <div className="text-3xl font-bold text-[#18BBF7] tracking-widest animate-pulse">
+        CALCULATING...
+      </div>
+    );
+  }
+
+  // Show launched state if countdown complete
   if (!timeLeft) {
     return (
       <div className="text-3xl font-bold text-green-500 tracking-widest">
