@@ -1,100 +1,81 @@
 import { useEffect, useState, memo } from 'react';
-import { Play, Youtube } from 'lucide-react';
+import { Youtube, MonitorPlay } from 'lucide-react';
 
-// Separate component for each stream card to properly use hooks
 const StreamCard = memo(({ stream }) => {
   const [isActive, setIsActive] = useState(false);
 
-  const getPlatformIcon = (platform) => {
-    switch (platform) {
-      case 'youtube':
-        return <Youtube className="w-5 h-5" />;
-      default:
-        return <Play className="w-5 h-5" />;
-    }
-  };
-
-  const getEmbedUrl = (stream) => {
-    if (stream.platform === 'youtube') {
-      return `https://www.youtube.com/embed/${stream.streamId}?autoplay=0&rel=0`;
-    }
-    return null;
-  };
-
-  // Convert to UTC timestamp in ms
-  const toUTC = (date) => new Date(date).getTime() - new Date().getTimezoneOffset() * 60000;
-
+  // UTC Check logic
   const isStreamLive = (scheduledStartTime) => {
-    const nowUTC = toUTC(new Date());
-    const startUTC = toUTC(scheduledStartTime);
-    return nowUTC >= startUTC;
+    const now = new Date().getTime();
+    const start = new Date(scheduledStartTime).getTime();
+    return now >= start;
   };
 
-  // Check if stream is live on mount and every 30 seconds
   useEffect(() => {
-    // Initial check
     setIsActive(isStreamLive(stream.scheduledStartTime));
-
-    // Set up interval for periodic checks
     const interval = setInterval(() => {
       setIsActive(isStreamLive(stream.scheduledStartTime));
-    }, 30000); // Check every 30 seconds
-
+    }, 30000);
     return () => clearInterval(interval);
   }, [stream.scheduledStartTime]);
 
-  const handleWatchNow = () => {
-    if (isActive) {
-      window.open(stream.url, '_blank', 'noopener,noreferrer');
+  const getEmbedUrl = (stream) => {
+    if (stream.platform === 'youtube') {
+      return `https://www.youtube.com/embed/${stream.streamId}?autoplay=0&rel=0&modestbranding=1`;
     }
+    return null;
   };
 
   const embedUrl = getEmbedUrl(stream);
   const isYouTube = stream.platform === 'youtube';
 
   return (
-    <div className="group h-full block transition-all duration-300">
-      <div className="bg-transparent backdrop-blur-xs border-2 overflow-hidden h-full flex flex-col border-[#18BBF7]/40 hover:border-[#18BBF7] transition-all duration-300">
-        
-        {/* Thumbnail / Embed */}
-        <div className="relative overflow-hidden bg-black">
-          {isYouTube && embedUrl ? (
-            <iframe
-              src={embedUrl}
-              title={stream.title}
-              className="w-full aspect-video"
-              allowFullScreen
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              loading="lazy"
+    <div className="group h-full flex flex-col bg-black border-2 border-[#18BBF7]/30 hover:border-[#18BBF7] transition-all duration-200">
+    
+      {/* Video/Thumbnail Section */}
+      <div className="relative aspect-video bg-black overflow-hidden">
+        {isYouTube && embedUrl ? (
+          <iframe
+            src={embedUrl}
+            title={stream.title}
+            className="w-full h-full grayscale-[0.2] group-hover:grayscale-0 transition-all duration-500"
+            allowFullScreen
+            loading="lazy"
+          />
+        ) : (
+          <div className="relative h-full w-full">
+            <img
+              src={stream.thumbnailUrl || '/placeholder-stream.jpg'}
+              alt={stream.title}
+              className="w-full h-full object-cover opacity-50 group-hover:opacity-100 transition-opacity"
             />
-          ) : (
-            <div className="relative aspect-video bg-gradient-to-br from-[#18BBF7]/10 to-[#FF6B35]/10 flex items-center justify-center">
-              <img
-                src={stream.thumbnailUrl || '/placeholder-stream.jpg'}
-                alt={stream.title}
-                className="w-full h-full object-cover opacity-70 group-hover:opacity-90 transition-opacity"
-              />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Play className="w-16 h-16 text-[#18BBF7] opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="p-4 border-2 border-[#18BBF7] bg-black/80 text-[#18BBF7] font-black tracking-widest uppercase text-xs">
+                Signal Offline
               </div>
             </div>
-          )}
-          <div
-            className="absolute bottom-0 left-0 right-0 h-1"
-            style={{ backgroundColor: '#FF6B35' }}
-          />
-        </div>
+          </div>
+        )}
+        
+        {/* Hard Edge Accent */}
+        <div className="absolute bottom-0 left-0 w-full h-1 bg-[#FF6B35] scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
+      </div>
 
-        {/* Content */}
-        <div className="p-5 flex-1 flex flex-col">
-          <h4 className="text-md font-bold mb-1 tracking-wide uppercase text-white group-hover:text-[#18BBF7] transition-colors line-clamp-2">
-            {stream.title}
-          </h4>
-          <div className="h-px my-2" style={{ backgroundColor: '#18BBF7', opacity: 0.3 }} />
-          <p className="text-white text-xs tracking-wider font-light flex items-center gap-2 uppercase">
-            {getPlatformIcon(stream.platform)}
-            {stream.channelName || 'Unknown Channel'}
-          </p>
+      {/* Content Section */}
+      <div className="p-4 flex-1 flex flex-col bg-white/[0.02]">
+        <h4 className="text-md font-black mb-3 tracking-tight uppercase text-white leading-tight line-clamp-2 min-h-[2.5rem]">
+          {stream.title}
+        </h4>
+        
+        <div className="mt-auto pt-3 border-t border-[#18BBF7]/20 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 text-[#18BBF7]/70">
+              {stream.platform === 'youtube' ? <Youtube size={16} /> : <MonitorPlay size={16} />}
+            </div>
+            <span className="text-gray-400 text-[10px] font-bold tracking-widest uppercase truncate max-w-[120px]">
+              {stream.channelName || 'Unknown Source'}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -104,12 +85,10 @@ const StreamCard = memo(({ stream }) => {
 StreamCard.displayName = 'StreamCard';
 
 const StreamGrid = ({ streams }) => {
-  if (!streams || streams.length === 0) {
-    return null;
-  }
+  if (!streams || streams.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
       {streams.map((stream) => (
         <StreamCard 
           key={stream.streamId || stream._id} 
