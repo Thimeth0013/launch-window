@@ -52,18 +52,6 @@ const MissionLoader = ({ message = "Initialising Feeds" }) => {
             </p>
           </div>
         </div>
-
-        {/* Tactical Footer */}
-        <div className="mt-12 w-full flex justify-between items-end opacity-40 border-t border-white/5 pt-4">
-          <div className="text-[8px] font-mono leading-tight uppercase space-y-1">
-            <p>LAT: 34.632° N</p>
-            <p>LON: 139.510° E</p>
-          </div>
-          <div className="text-[8px] font-mono uppercase text-right space-y-1">
-            <p className="text-[#18BBF7]">Search_Grounding: ON</p>
-            <p>Node: TYO-02</p>
-          </div>
-        </div>
       </div>
     </div>
   );

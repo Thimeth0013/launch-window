@@ -41,7 +41,7 @@ const Home = () => {
   const loadLaunches = async () => {
     try {
       setLoading(true);
-      const data = await fetchLaunches(20);
+      const data = await fetchLaunches(30);
       setLaunches(data);
       setFilteredLaunches(data);
 
