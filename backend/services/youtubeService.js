@@ -12,6 +12,8 @@ const CHANNEL_CONFIGS = {
   'UC2_vpnza621Sa0cf_xhqJ8Q': { name: 'Raw Space', strictness: 'moderate' },
   'UC9T3XwCjQdzpSp7IzGkbtJA': { name: 'International Rocket Launches', strictness: 'strict' },
   'UCLA_DiR1FfKNvjuUpBHmylQ': { name: 'NASA', strictness: 'moderate' },
+  'UCw5hEVOTfz_AfzsNFWyNlNg': { name: 'ISRO Official', strictness: 'moderate', isISRO: true },
+  'UCPkKkvT2DNoQt9LwjAE5LGQ': { name: 'Launch Heaven', strictness: 'moderate' },
 };
 
 const API_QUOTA_TRACKER = {
@@ -30,8 +32,49 @@ function isHighProfile(rocketName) {
   );
 }
 
+function isIndianMission(launchName) {
+  const name = launchName.toLowerCase();
+  return name.includes('pslv') || name.includes('gslv') || name.includes('lvm3') || name.includes('sslv');
+}
+
+function parseIndianMission(launchName) {
+  // Example: "PSLV-DL | EOS-N1 and others" or "GSLV Mk III | Chandrayaan-3"
+  const parts = launchName.split('|');
+  const rocketPart = parts[0].trim();
+  let payloadPart = parts[1]?.trim();
+  
+  // Clean up payload name - remove common suffixes
+  if (payloadPart) {
+    payloadPart = payloadPart
+      .replace(/\s+and\s+others?/gi, '') // Remove "and others"
+      .replace(/\s+etc\.?/gi, '')        // Remove "etc"
+      .trim();
+  }
+  
+  // Extract base rocket type (PSLV, GSLV, etc.)
+  let baseRocket = '';
+  if (rocketPart.toLowerCase().includes('pslv')) baseRocket = 'PSLV';
+  else if (rocketPart.toLowerCase().includes('gslv')) baseRocket = 'GSLV';
+  else if (rocketPart.toLowerCase().includes('lvm3')) baseRocket = 'LVM3';
+  else if (rocketPart.toLowerCase().includes('sslv')) baseRocket = 'SSLV';
+  
+  return {
+    baseRocket,
+    variant: rocketPart, // e.g., "PSLV-DL"
+    payload: payloadPart, // e.g., "EOS-N1" (cleaned)
+    isIndian: true
+  };
+}
+
 function getRocketName(launchName) {
   const lower = launchName.toLowerCase();
+  
+  // Handle Indian missions
+  if (isIndianMission(launchName)) {
+    const indianInfo = parseIndianMission(launchName);
+    return indianInfo.baseRocket;
+  }
+  
   if (lower.includes('new glenn')) return 'New Glenn';
   if (lower.includes('starship')) return 'Starship';
   if (lower.includes('falcon heavy')) return 'Falcon Heavy';
@@ -49,6 +92,17 @@ function getRocketName(launchName) {
 
 function extractMissionInfo(launchName) {
   const lower = launchName.toLowerCase();
+  
+  // Indian missions
+  if (isIndianMission(launchName)) {
+    const indianInfo = parseIndianMission(launchName);
+    return {
+      type: 'indian',
+      ...indianInfo,
+      isFrequent: false
+    };
+  }
+  
   if (lower.includes('starlink')) {
     const match = launchName.match(/Starlink Group ([\d-]+)/i);
     return { type: 'starlink', group: match ? match[1] : null, isFrequent: true };
@@ -65,9 +119,17 @@ function extractMissionInfo(launchName) {
 }
 
 function buildSearchQuery(launchName, channelId) {
-  const rocketName = getRocketName(launchName);
-  const missionInfo = extractMissionInfo(launchName);
   const channelConfig = CHANNEL_CONFIGS[channelId];
+  const missionInfo = extractMissionInfo(launchName);
+  
+  // Special handling for ISRO Official channel
+  if (channelConfig.isISRO && missionInfo.type === 'indian') {
+    // Search by payload name for ISRO channel since they use different naming
+    // Example: Search "EOS-N1" instead of "PSLV-DL"
+    return missionInfo.payload || missionInfo.baseRocket;
+  }
+  
+  const rocketName = getRocketName(launchName);
   
   if (isHighProfile(rocketName)) return rocketName;
   if (missionInfo.type === 'starlink' && missionInfo.group) return `${rocketName} Starlink`;
@@ -80,6 +142,19 @@ function isStreamMatch(item, launchName, missionInfo, isHighProfileRocket, chann
   const title = item.snippet.title.toLowerCase();
   const description = (item.snippet.description || '').toLowerCase();
   const combined = `${title} ${description}`;
+  const channelConfig = CHANNEL_CONFIGS[channelId];
+  
+  // Special matching for ISRO Official channel with Indian missions
+  if (channelConfig.isISRO && missionInfo.type === 'indian') {
+    const baseRocketMatch = combined.includes(missionInfo.baseRocket.toLowerCase());
+    const payloadMatch = missionInfo.payload && combined.includes(missionInfo.payload.toLowerCase());
+    
+    // Match if either:
+    // 1. Both base rocket (PSLV/GSLV) AND payload match
+    // 2. Just payload matches (for unique payloads like Chandrayaan)
+    return (baseRocketMatch && payloadMatch) || payloadMatch;
+  }
+  
   const rocketName = getRocketName(launchName).toLowerCase();
   
   if (isHighProfileRocket) return combined.includes(rocketName);
@@ -111,6 +186,13 @@ function calculateMatchScore(streamTitle, launchName, missionInfo) {
   const streamLower = streamTitle.toLowerCase();
   let score = 0;
   const rocket = getRocketName(launchName).toLowerCase();
+  
+  // Indian mission scoring
+  if (missionInfo.type === 'indian') {
+    if (streamLower.includes(missionInfo.baseRocket.toLowerCase())) score += 3;
+    if (missionInfo.payload && streamLower.includes(missionInfo.payload.toLowerCase())) score += 5;
+    return Math.min(score / 10, 1);
+  }
   
   if (streamLower.includes(rocket)) score += 3;
   if (missionInfo.type === 'starlink' && missionInfo.group && streamLower.includes(missionInfo.group.toLowerCase())) score += 5;
