@@ -47,3 +47,44 @@
 .animate-scan-slide {
   animation: scan-slide 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
+
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); } /* Moves exactly half-way because we duplicated the list */
+}
+
+.animate-marquee {
+  display: flex;
+  animation: marquee 30s linear infinite; /* Adjust 30s for speed */
+}
+
+.hover\:pause-marquee:hover .animate-marquee {
+  animation-play-state: paused;
+}
+
+/* Custom Scrollbar for the Personnel Bio */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px; /* Very thin */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05); /* Subtle track */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #18BBF7;
+  border-radius: 10px;
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #18BBF7 rgba(255, 255, 255, 0.05);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
