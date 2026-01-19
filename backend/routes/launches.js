@@ -51,9 +51,111 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * GET /api/launches/cleanup/stats
+ * Get cleanup statistics without deleting
+ * MUST come before /:id route
+ */
+router.get('/cleanup/stats', async (req, res) => {
+  try {
+    const hours = parseInt(req.query.hours) || 48;
+    const stats = await getCleanupStats(hours);
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+/**
+ * POST /api/launches/cleanup
+ * Manual cleanup endpoint - removes old launches
+ * User-triggered (no cron job needed)
+ */
+router.post('/cleanup', async (req, res) => {
+  try {
+    const hours = parseInt(req.body.hours) || 48;
+    const result = await cleanupOldLaunches(hours);
+    res.json({ 
+      message: 'Cleanup completed', 
+      ...result 
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+/**
+ * POST /api/launches/:id/sync-streams
+ * Manually trigger stream sync for a specific launch
+ * MUST come before /:id GET route
+ */
+router.post('/:id/sync-streams', async (req, res) => {
+  try {
+    const launchId = req.params.id;
+    console.log(`📡 [MANUAL_STREAM_SYNC] Triggered for launch ID: ${launchId}`);
+    
+    const launch = await getLaunchById(launchId);
+    
+    if (!launch) {
+      console.log(`❌ [NOT_FOUND] Launch with ID ${launchId} not found`);
+      return res.status(404).json({ 
+        message: 'Launch not found',
+        requestedId: launchId 
+      });
+    }
+    
+    console.log(`🚀 [SYNCING] ${launch.name}`);
+    
+    // Import services
+    const { matchStreamsToSingleLaunch } = await import('../services/youtubeService.js');
+    const Stream = (await import('../models/Stream.js')).default;
+    
+    // Fetch streams from YouTube
+    const streams = await matchStreamsToSingleLaunch(launch);
+    
+    // Save to database
+    if (streams.length > 0) {
+      // Delete old streams for this launch first
+      await Stream.deleteMany({ launchId: launch.id });
+      console.log(`🗑️ [CLEANUP] Removed old streams for launch ${launch.id}`);
+      
+      // Insert new streams
+      const savedStreams = await Stream.insertMany(streams);
+      console.log(`💾 [SAVED] ${savedStreams.length} streams saved to database`);
+    } else {
+      console.log(`ℹ️ [NO_STREAMS] No streams found to save`);
+    }
+    
+    console.log(`✅ [SYNC_COMPLETE] Found and saved ${streams.length} streams`);
+    
+    res.json({
+      message: 'Stream sync completed and saved to database',
+      launchId: launch.id,
+      launchName: launch.name,
+      streamsFound: streams.length,
+      streamsSaved: streams.length,
+      streams: streams.map(s => ({
+        title: s.title,
+        channelName: s.channelName,
+        url: s.url,
+        matchScore: s.matchScore,
+        scheduledStartTime: s.scheduledStartTime,
+        platform: s.platform
+      }))
+    });
+  } catch (error) {
+    console.error('❌ [STREAM_SYNC_ERROR]:', error);
+    res.status(500).json({ 
+      message: 'Stream sync failed', 
+      error: error.message 
+    });
+  }
+});
+
+/**
  * GET /api/launches/:id
  * Get single launch by ID
  * Also checks for last-minute scrubs if launch is imminent
+ * MUST come after specific routes like /cleanup/stats and /:id/sync-streams
  */
 router.get('/:id', async (req, res) => {
   try {
@@ -89,38 +191,6 @@ router.get('/:id', async (req, res) => {
       message: 'Error fetching launch details', 
       error: error.message 
     });
-  }
-});
-
-/**
- * POST /api/launches/cleanup
- * Manual cleanup endpoint - removes old launches
- * User-triggered (no cron job needed)
- */
-router.post('/cleanup', async (req, res) => {
-  try {
-    const hours = parseInt(req.body.hours) || 48;
-    const result = await cleanupOldLaunches(hours);
-    res.json({ 
-      message: 'Cleanup completed', 
-      ...result 
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-/**
- * GET /api/launches/cleanup/stats
- * Get cleanup statistics without deleting
- */
-router.get('/cleanup/stats', async (req, res) => {
-  try {
-    const hours = parseInt(req.query.hours) || 48;
-    const stats = await getCleanupStats(hours);
-    res.json(stats);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
   }
 });
 

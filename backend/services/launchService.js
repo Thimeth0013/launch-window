@@ -74,12 +74,15 @@ export const fetchUpcomingLaunches = async () => {
           status: apiLaunch.status?.name || 'Unknown',
           rocket: {
             name: apiLaunch.rocket?.configuration?.name || 'Unknown',
-            configuration: apiLaunch.rocket?.configuration?.full_name || 'Unknown'
+            configuration: apiLaunch.rocket?.configuration?.full_name || 'Unknown',
+            spacecraft_stage: apiLaunch.rocket?.spacecraft_stage || null
           },
+          launcher_stage: apiLaunch.rocket?.launcher_stage || [],
           mission: {
             name: apiLaunch.mission?.name || null,
             description: apiLaunch.mission?.description || null,
-            type: apiLaunch.mission?.type || null
+            type: apiLaunch.mission?.type || null,
+            orbit: apiLaunch.mission?.orbit || null
           },
           pad: {
             name: apiLaunch.pad?.name || 'Unknown',
@@ -100,7 +103,7 @@ export const fetchUpcomingLaunches = async () => {
   }
 };
 
-export const getUpcomingLaunches = async (limit = 20) => {
+export const getUpcomingLaunches = async (limit = 30) => {
   const now = new Date();
   const launches = await Launch.find({
     date: { $gte: now }
