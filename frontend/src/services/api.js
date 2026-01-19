@@ -36,7 +36,7 @@ api.interceptors.response.use(
   }
 );
 
-export const fetchLaunches = async (limit = 20) => {
+export const fetchLaunches = async (limit = 30) => {
   const response = await api.get(`/launches?limit=${limit}`);
   return response.data;
 };
@@ -57,6 +57,12 @@ export const fetchStreamsForLaunch = async (launchId) => {
 
 export const addStream = async (streamData) => {
   const response = await api.post('/streams', streamData);
+  return response.data;
+};
+
+export const fetchAstronautById = async (id) => {
+  console.log(`👨‍🚀 [API] Requesting personnel file for ID: ${id}`);
+  const response = await api.get(`/astronauts/${id}`);
   return response.data;
 };
 
