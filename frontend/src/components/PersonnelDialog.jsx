@@ -26,12 +26,12 @@ const PersonnelDialog = ({ astronaut, isOpen, onClose }) => {
       
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-black/95 backdrop-blur-xl animate-in fade-in duration-500"
+        className="fixed inset-0 bg-transparent backdrop-blur-md animate-in fade-in duration-500"
         onClick={onClose}
       ></div>
 
       {/* Cinematic Dialog Box */}
-      <div className="relative bg-[#050505] border-y md:border border-white/10 w-full max-w-6xl min-h-full md:min-h-0 md:h-[80vh] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] animate-in zoom-in-95 duration-500 flex flex-col md:flex-row my-auto">
+      <div className="relative bg-[#050505] border-y md:border border-white/20 w-full max-w-6xl min-h-full md:min-h-0 md:h-[90vh] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] animate-in zoom-in-95 duration-500 flex flex-col md:flex-row my-auto">
         
         {/* LEFT: Cinematic Hero Section */}
         <div className="relative w-full md:w-1/2 h-[90vh] md:h-auto overflow-hidden flex-shrink-0">
@@ -95,7 +95,7 @@ const PersonnelDialog = ({ astronaut, isOpen, onClose }) => {
                   <span className="text-zinc-600 text-[9px] uppercase tracking-[0.4em] mb-2">Duty Status</span>
                   <div className="flex items-center gap-2">
                     {/* Fixed Logic: Blue for Active */}
-                    <div className={`w-1.5 h-1.5 rounded-full ${astronaut.status?.name?.toLowerCase() === 'active' ? 'bg-[#18BBF7] shadow-[0_0_8px_#18BBF7]' : 'bg-zinc-600'}`}></div>
+                    <div className={`w-1.5 h-1.5 rounded-full ${astronaut.status?.name?.toLowerCase() === 'active' ? 'bg-zinc-600' : 'bg-[#18BBF7] shadow-[0_0_8px_#18BBF7]'}`}></div>
                     <p className="text-white text-sm font-bold uppercase tracking-wide">
                       {astronaut.status?.name || 'Active'}
                     </p>
