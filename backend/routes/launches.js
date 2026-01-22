@@ -5,10 +5,8 @@ import LaunchSync from '../models/LaunchSync.js';
 
 const router = express.Router();
 
-/**
- * GET /api/launches
- * Triggered by user visit. Checks if the 1-hour update window has expired.
- */
+// GET /api/launches
+// Triggered by user visit. Checks if the 1-hour update window has expired.
 router.get('/', async (req, res) => {
   const ONE_HOUR = 60 * 60 * 1000;
   const now = new Date();
@@ -50,11 +48,9 @@ router.get('/', async (req, res) => {
   }
 });
 
-/**
- * GET /api/launches/cleanup/stats
- * Get cleanup statistics without deleting
- * MUST come before /:id route
- */
+// GET /api/launches/cleanup/stats
+// Get cleanup statistics without deleting
+// MUST come before /:id route
 router.get('/cleanup/stats', async (req, res) => {
   try {
     const hours = parseInt(req.query.hours) || 48;
@@ -65,11 +61,8 @@ router.get('/cleanup/stats', async (req, res) => {
   }
 });
 
-/**
- * POST /api/launches/cleanup
- * Manual cleanup endpoint - removes old launches
- * User-triggered (no cron job needed)
- */
+// POST /api/launches/cleanup
+//Manual cleanup endpoint - removes old launches - User-triggered (no cron job needed)
 router.post('/cleanup', async (req, res) => {
   try {
     const hours = parseInt(req.body.hours) || 48;
@@ -83,11 +76,8 @@ router.post('/cleanup', async (req, res) => {
   }
 });
 
-/**
- * POST /api/launches/:id/sync-streams
- * Manually trigger stream sync for a specific launch
- * MUST come before /:id GET route
- */
+// Manually trigger stream sync for a specific launch
+// MUST come before /:id GET route
 router.post('/:id/sync-streams', async (req, res) => {
   try {
     const launchId = req.params.id;
@@ -151,12 +141,8 @@ router.post('/:id/sync-streams', async (req, res) => {
   }
 });
 
-/**
- * GET /api/launches/:id
- * Get single launch by ID
- * Also checks for last-minute scrubs if launch is imminent
- * MUST come after specific routes like /cleanup/stats and /:id/sync-streams
- */
+// Get single launch by ID
+// Also checks for last-minute scrubs if launch is imminent
 router.get('/:id', async (req, res) => {
   try {
     const launchId = req.params.id;
@@ -179,7 +165,7 @@ router.get('/:id', async (req, res) => {
     
     if (hoursUntilLaunch >= -0.167 && hoursUntilLaunch <= 2) {
       console.log(`⏰ [CRITICAL] Launch at T-${hoursUntilLaunch.toFixed(2)}h - checking for updates...`);
-      const { checkForScrub } = await import('../services/scrubDetectionService.js');
+      const { checkForScrub } = await import('../services/scrubDetectionScheduler.js');
       launch = await checkForScrub(launch);
     }
     

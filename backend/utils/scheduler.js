@@ -1,10 +1,8 @@
 import { fetchUpcomingLaunches } from '../services/launchService.js';
-import LaunchSync from '../models/LaunchSync.js'; // You'll need this new model
+import LaunchSync from '../models/LaunchSync.js';
 
-/**
- * Checks if the global launch database needs an update.
- * Triggered by user visit, limited to once per hour.
- */
+//Checks if the global launch database needs an update.
+//Triggered by user visit, limited to once per hour.
 export const getOrSyncLaunchDatabase = async () => {
   const ONE_HOUR = 60 * 60 * 1000;
   const now = new Date();
