@@ -6,6 +6,7 @@ import connectDB from './config/db.js';
 import launchRoutes from './routes/launches.js';
 import streamRoutes from './routes/streams.js';
 import chatRoutes from './routes/chat.js';
+import astronautRoutes from './routes/astronauts.js';
 import { fetchUpcomingLaunches } from './services/launchService.js';
 
 dotenv.config();
@@ -21,6 +22,7 @@ app.use(express.json());
 app.use('/api/launches', launchRoutes);
 app.use('/api/streams', streamRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/astronauts', astronautRoutes);
 
 // Health check
 app.get('/', (req, res) => {
