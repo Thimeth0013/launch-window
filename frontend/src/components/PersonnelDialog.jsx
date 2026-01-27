@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { X, Instagram, Twitter, ExternalLink, ShieldCheck, Orbit, Rocket, Footprints, Target, Award } from 'lucide-react';
 
-const PersonnelDialog = ({ astronaut, isOpen, onClose }) => {
+const PersonnelDialog = ({ astronaut, isOpen, onClose, dateOfBirth }) => {
 
   useEffect(() => {
     if (isOpen) {
@@ -64,35 +64,11 @@ const PersonnelDialog = ({ astronaut, isOpen, onClose }) => {
         </div>
 
         {/* RIGHT: Data Terminal Section (60% Width) */}
-        <div className="flex-1 flex flex-col bg-[#050505] relative md:w-[60%]">
+        <div className="flex-1 flex flex-col relative md:w-[40%]">
           <div className="overflow-y-auto p-8 md:p-12 flex-1 custom-scrollbar">
             
-            {/* Career Highlight Counters */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-                <div className="bg-white/5 border border-white/10 p-4 text-center group hover:border-[#FF6B35] transition-colors">
-                    <Rocket className="w-4 h-4 mx-auto mb-2 text-[#FF6B35]" />
-                    <span className="block text-[8px] text-zinc-500 uppercase tracking-widest mb-1">Flights</span>
-                    <span className="text-lg font-mono font-bold text-white">{astronaut.flights_count || 0}</span>
-                </div>
-                <div className="bg-white/5 border border-white/10 p-4 text-center group hover:border-[#18BBF7] transition-colors">
-                    <Footprints className="w-4 h-4 mx-auto mb-2 text-[#18BBF7]" />
-                    <span className="block text-[8px] text-zinc-500 uppercase tracking-widest mb-1">Spacewalks</span>
-                    <span className="text-lg font-mono font-bold text-white">{astronaut.spacewalks_count || 0}</span>
-                </div>
-                <div className="bg-white/5 border border-white/10 p-4 text-center group hover:border-white transition-colors">
-                    <Target className="w-4 h-4 mx-auto mb-2 text-zinc-400" />
-                    <span className="block text-[8px] text-zinc-500 uppercase tracking-widest mb-1">Landings</span>
-                    <span className="text-lg font-mono font-bold text-white">{astronaut.landings_count || 0}</span>
-                </div>
-                <div className="bg-white/5 border border-white/10 p-4 text-center group hover:border-[#4ade80] transition-colors">
-                    <Orbit className="w-4 h-4 mx-auto mb-2 text-[#4ade80]" />
-                    <span className="block text-[8px] text-zinc-500 uppercase tracking-widest mb-1">In Space</span>
-                    <span className="text-lg font-mono font-bold text-white">{astronaut.in_space ? "YES" : "NO"}</span>
-                </div>
-            </div>
-
             {/* Biography Section */}
-            <div className="mb-12">
+            <div className="mb-8">
               <div className="flex items-center gap-3 mb-6">
                 <h3 className="text-[10px] font-black tracking-[0.5em] uppercase text-zinc-600">Personnel Bio</h3>
                 <div className="h-px flex-1 bg-white/10"></div>
@@ -100,6 +76,26 @@ const PersonnelDialog = ({ astronaut, isOpen, onClose }) => {
               <p className="text-zinc-400 text-sm leading-loose font-light uppercase tracking-widest text-justify">
                 {astronaut.bio || "No biography available in mission records."}
               </p>
+            </div>
+
+            {/* Career Highlight Counters */}
+            <div className="flex flex-wrap items-center justify-between gap-6 py-4 border-y border-white/10 px-1">
+              {[
+                { Icon: Rocket, label: 'Flights', val: astronaut.flights_count },
+                { Icon: Footprints, label: 'Spacewalks', val: astronaut.spacewalks_count },
+                { Icon: Target, label: 'Landings', val: astronaut.landings_count },
+                { Icon: Orbit, label: 'In Space', val: astronaut.in_space ? "YES" : "NO", active: astronaut.in_space }
+              ].map(({ Icon, label, val, active = val > 0 }, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <Icon className={`w-3.5 h-3.5 ${active ? 'text-[#18BBF7]' : 'text-zinc-600'}`} />
+                  <div>
+                    <p className="text-[10px] leading-none text-zinc-500 uppercase tracking-tighter">{label}</p>
+                    <p className={`text-sm font-mono font-bold text-left px-1 ${active ? 'text-white' : 'text-zinc-600'}`}>
+                      {val || 0}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* Core Data Dossier Grid */}
@@ -114,8 +110,27 @@ const PersonnelDialog = ({ astronaut, isOpen, onClose }) => {
                       ? 'bg-[#FF6B35] animate-pulse shadow-[0_0_8px_#FF6B35]'
                       : 'bg-zinc-600'
                   }`}></div>
-                  <p className="text-white text-sm font-bold uppercase tracking-wide">{astronaut.status?.name || 'Active'}</p>
+                  <p className="text-white text-sm font-bold uppercase tracking-wide">{astronaut.status?.name || 'Unavailable'}</p>
                 </div>
+              </div>
+              
+              <div className="flex flex-col">
+                <span className="text-zinc-600 text-[9px] uppercase tracking-[0.4em] mb-2">Nationality / Origin</span>
+                <p className="text-white text-sm font-bold  uppercase tracking-wide">{astronaut.nationality}</p>
+              </div>
+
+              <div className="flex flex-col">
+                <span className="text-zinc-600 text-[9px] uppercase tracking-[0.4em] mb-2">Personnel Rank</span>
+                <p className="text-white text-sm font-mono uppercase tracking-wide">
+                    {astronaut.flights_count > 0 ? "Veteran Astronaut" : "Astronaut Candidate"}
+                </p>
+              </div>
+
+              <div className="flex flex-col">
+                <span className="text-zinc-600 text-[9px] uppercase tracking-[0.4em] mb-2">Date of Birth</span>
+                <p className="text-white text-sm font-mono uppercase tracking-wide">
+                  {dateOfBirth ? new Date(dateOfBirth).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown'}
+                </p>
               </div>
 
               <div className="flex flex-col">
@@ -129,56 +144,11 @@ const PersonnelDialog = ({ astronaut, isOpen, onClose }) => {
               </div>
 
               <div className="flex flex-col">
-                <span className="text-zinc-600 text-[9px] uppercase tracking-[0.4em] mb-2">Personnel Rank</span>
-                <p className="text-white text-sm font-bold uppercase tracking-wide">
-                    {astronaut.flights_count > 0 ? "Veteran Astronaut" : "Astronaut Candidate"}
+                <span className="text-zinc-600 text-[9px] uppercase tracking-[0.4em] mb-2">Most Recent Launch</span>
+                <p className="text-white text-sm font-mono uppercase tracking-wide">
+                  {astronaut.last_flight ? new Date(astronaut.last_flight).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'N/A'}
                 </p>
               </div>
-
-              <div className="flex flex-col">
-                <span className="text-zinc-600 text-[9px] uppercase tracking-[0.4em] mb-2">Nationality / Origin</span>
-                <p className="text-white text-sm font-bold uppercase tracking-wide">{astronaut.nationality}</p>
-              </div>
-
-              <div className="flex flex-col">
-                <span className="text-zinc-600 text-[9px] uppercase tracking-[0.4em] mb-2">Date of Birth</span>
-                <p className="text-white text-sm font-bold uppercase tracking-wide">
-                  {astronaut.date_of_birth ? new Date(astronaut.date_of_birth).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown'}
-                </p>
-              </div>
-            </div>
-
-            {/* Career Milestones / Timeline Section */}
-            <div className="mb-12">
-                <div className="flex items-center gap-3 mb-8">
-                    <h3 className="text-[10px] font-black tracking-[0.5em] uppercase text-zinc-600">Career Milestones</h3>
-                    <div className="h-px flex-1 bg-white/10"></div>
-                </div>
-                <div className="space-y-6">
-                    <div className="flex gap-4">
-                        <div className="flex flex-col items-center">
-                            <div className="w-2 h-2 rounded-full bg-[#FF6B35]"></div>
-                            <div className="w-px h-full bg-white/10"></div>
-                        </div>
-                        <div>
-                            <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">First Deployment</p>
-                            <p className="text-white text-xs font-bold uppercase tracking-widest">
-                                {astronaut.first_flight ? new Date(astronaut.first_flight).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Awaiting Assignment'}
-                            </p>
-                        </div>
-                    </div>
-                    <div className="flex gap-4">
-                        <div className="flex flex-col items-center">
-                            <div className="w-2 h-2 rounded-full bg-[#18BBF7]"></div>
-                        </div>
-                        <div>
-                            <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Most Recent Launch</p>
-                            <p className="text-white text-xs font-bold uppercase tracking-widest">
-                                {astronaut.last_flight ? new Date(astronaut.last_flight).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'N/A'}
-                            </p>
-                        </div>
-                    </div>
-                </div>
             </div>
 
             {/* Footer / Socials */}

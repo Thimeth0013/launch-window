@@ -16,12 +16,14 @@ const LaunchDetail = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [selectedAstro, setSelectedAstro] = useState(null);
   const [isAstroLoading, setIsAstroLoading] = useState(false);
+  const [selectedDateOfBirth, setSelectedDateOfBirth] = useState(null);
 
-  const handleAstroClick = async (astroId) => {
+  const handleAstroClick = async (crewMember) => {
     try {
       setIsAstroLoading(true);
       // This calls your backend, which handles the saving/caching logic
-      const data = await fetchAstronautById(astroId); 
+      const data = await fetchAstronautById(crewMember.astronaut.id); 
+      setSelectedDateOfBirth(crewMember.astronaut.date_of_birth);
       setSelectedAstro(data);
     } catch (err) {
       console.error("Failed to retrieve personnel file:", err);
@@ -198,7 +200,7 @@ const LaunchDetail = () => {
       {launch.spacecraft_stage.launch_crew.map((member) => (
         <div 
           key={member.id} 
-          onClick={() => handleAstroClick(member.astronaut.id)} 
+          onClick={() => handleAstroClick(member)} 
           className="flex flex-col items-center text-center group cursor-pointer relative"
         >
           {/* Image Container */}
@@ -230,6 +232,7 @@ const LaunchDetail = () => {
       astronaut={selectedAstro} 
       isOpen={!!selectedAstro} 
       onClose={() => setSelectedAstro(null)} 
+      dateOfBirth={selectedDateOfBirth}
     />
     
     {isAstroLoading && (
