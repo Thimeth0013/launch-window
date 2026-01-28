@@ -17,10 +17,11 @@ const LaunchCard = ({ launch, streamCount = 0 }) => {
             <img 
               src={launch.image} 
               alt={launch.name}
-              className="w-full h-40 object-cover transition-transform duration-500 group-hover:scale-105"
+              className="w-full h-40 brightness-90 object-cover transition-all duration-500 group-hover:scale-105 group-hover:brightness-100 group-hover:saturate-110"
             />
             {/* Animated Orange Line */}
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#FF6B35] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
+            <div className="h-1 bg-[#FF6B35]/40" />
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#ff642c] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
             
             {streamCount > 0 && (
               <div className="absolute top-2 right-2 bg-[#FF6B35] text-white px-2 py-1 flex items-center gap-1 text-xs font-bold tracking-wide">
@@ -50,7 +51,7 @@ const LaunchCard = ({ launch, streamCount = 0 }) => {
 
             {/* Location with Icon */}
             <div className="flex items-start gap-1.5 mt-2">
-              <MapPin className="w-3 h-3 text-gray-400 mt-0.5" />
+              <MapPin className="w-3 h-3 text-gray-400"/>
               <p className="text-gray-400 text-xs tracking-widest uppercase line-clamp-2" style={{ fontSize: '0.65rem' }}>
                 {launch.pad?.location || 'Unknown Location'}
               </p>
